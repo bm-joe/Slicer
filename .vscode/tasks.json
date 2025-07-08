@@ -1,0 +1,24 @@
+{
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "build with mangeons ",
+            "command": "C:\\msys64\\msys2_shell.cmd",
+            "args": [
+                "-mingw64",
+                "-defterm",
+                "-here",
+                "-no-start",
+                "-c",
+                {
+                    "value": "g++ /c/Users/burge/Documents/Personal-Projects/Slicer/${fileBasename} $(wx-config --cxxflags --libs) -o /c/Users/burge/Documents/Personal-Projects/Slicer/${fileBasenameNoExtension}.exe",
+                    "quoting": "escape"
+                }
+            ],
+            "problemMatcher": [],
+            "group": "build",
+            "detail": "i want to die lol"
+        }
+    ],
+    "version": "2.0.0"
+}

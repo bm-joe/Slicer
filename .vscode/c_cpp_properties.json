@@ -1,0 +1,27 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/Users/burge/vcpkg/installed/x64-windows/include",
+                "C:/msys64/mingw64/include/wx-3.2/",
+                "C:/Users/burge/vcpkg/installed/x64-windows/lib"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "__WXMSW__",
+                "wxUSE_UNICODE"
+
+            ],
+            "windowsSdkVersion": "10.0.26100.0",
+            "compilerPath": "C:/msys64/mingw64/bin/g++.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-gcc-x64"
+        }
+    ],
+    "version": 4
+}

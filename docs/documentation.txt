@@ -1,0 +1,22 @@
+general c++ notes:
+- myClass* = a pointer or something
+- & is the address of a variable (not the actual variable)
+- macros are defined using #define, and all instances of the defined name are replaced by the defined section of the code before compilation 
+- class myClass : public myParent means that myClass is a child of myParent
+- static variables are the same for every instance of the class
+- static = class level
+- non-static = object level
+- static vars are the same for every member of a class 
+- non-static vars vary depending on the object 
+- static methods cannot use this
+- non-static methods can use this 
+- each object has its own copy of non-static instance variables which non-static methods can modify
+- classname::method is used to reference static methods, define a method outside the class, or to create a pointer to a function 
+
+wxwidgets information: 
+
+- first set up a wxapp class
+    - contains the OnInit() function which has the virtual modifier (override)
+    - wxApp::OnInit()
+        - in this method the main window is created 
+    
