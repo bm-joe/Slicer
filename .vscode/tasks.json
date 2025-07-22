@@ -1,24 +1,44 @@
 {
-    "tasks": [
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "shell",
+      "label": "build with mangeons",
+      "command": "C:\\msys64\\msys2_shell.cmd",
+      "args": [
+        "-mingw64","-defterm","-here","-no-start","-c",
         {
-            "type": "shell",
-            "label": "build with mangeons ",
-            "command": "C:\\msys64\\msys2_shell.cmd",
-            "args": [
-                "-mingw64",
-                "-defterm",
-                "-here",
-                "-no-start",
-                "-c",
-                {
-                    "value": "g++ /c/Users/burge/Documents/Personal-Projects/Slicer/${fileBasename} $(wx-config --cxxflags --libs) -o /c/Users/burge/Documents/Personal-Projects/Slicer/${fileBasenameNoExtension}.exe",
-                    "quoting": "escape"
-                }
-            ],
-            "problemMatcher": [],
-            "group": "build",
-            "detail": "i want to die lol"
+          "value": "g++ /c/Users/burge/Documents/Personal-Projects/Slicer/${fileBasename} $(wx-config --cxxflags --libs --gl-libs) -lopengl32 -lglu32 -lgdi32 -o /c/Users/burge/Documents/Personal-Projects/Slicer/${fileBasenameNoExtension}.exe",
+          "quoting": "escape"
         }
-    ],
-    "version": "2.0.0"
+      ],
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "type": "shell",
+      "label": "run with mangeons",
+      "command": "C:\\msys64\\msys2_shell.cmd",
+      "args": [
+        "-mingw64","-defterm","-here","-no-start","-c",
+        {
+          "value": "/c/Users/burge/Documents/Personal-Projects/Slicer/${fileBasenameNoExtension}.exe",
+          "quoting": "escape"
+        }
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "build & run",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "build with mangeons",
+        "run with mangeons"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
 }
