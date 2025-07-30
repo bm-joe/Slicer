@@ -19,4 +19,12 @@ wxwidgets information:
     - contains the OnInit() function which has the virtual modifier (override)
     - wxApp::OnInit()
         - in this method the main window is created 
-    
+- need a wxFrame class to have a window 
+
+3d rendering:
+
+- need
+    - wxGLCanvas class 
+        - creates a surface where 3-d objects can be rendered with openGL
+    - wxGLContext class
+        - manages specific resources + textures needed to render on the canvas(es)
