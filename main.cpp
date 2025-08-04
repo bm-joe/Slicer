@@ -69,8 +69,11 @@ MyGLCanvas::MyGLCanvas(wxWindow* parent) : wxGLCanvas(
 ){
     auto* context = new MyGLContext(this);
     holdTimer = new wxTimer(this, viewTimerID);
+   
+    ComputeGrid();
 
     Bind(wxEVT_PAINT, &MyGLCanvas::OnPaint, this);
+    Bind(wxEVT_MOUSEWHEEL, &MyGLCanvas::OnScroll, this);
     Bind(wxEVT_KEY_DOWN, &MyGLCanvas::OnKeyDown, this);
     Bind(wxEVT_RIGHT_DOWN, &MyGLCanvas::OnRightDown, this);
     Bind(wxEVT_RIGHT_UP, &MyGLCanvas::OnRightUp, this);
@@ -103,35 +106,64 @@ void MyGLCanvas::OnKeyDown(wxKeyEvent& event){
     switch (event.GetKeyCode())
     {
     case WXK_ESCAPE:
+        pitch = 0.0f;
+        yaw = 0.0f;
+        
+        //old rotation modes
         // OGXDelta = 0.0f;
         // TempYDelta = 0.0f;
         //  TempXDelta = 0.0f;
         //  OGYDelta = 0.0f;
-        pitch = 0.0f;
-        yaw = 0.0f;
+        
         // cameraQuat = glm::quat();
         // yawQuat = glm::quat();
         // pitchQuat = glm::quat();
         // std::cout << "RESET: " << TempXDelta << ", " << TempYDelta << std::endl;
         Refresh(false);
         break;
-    
+    case WXK_UP:
+        gridScale += 0.1;
+        ComputeGrid();
+        Refresh(false);
+        break;
+    case WXK_DOWN:
+        ComputeGrid();
+        gridScale -= 0.1;
+        Refresh(false);
+        break;
     default:
         event.Skip();
         break;
     }
+};
+
+void MyGLCanvas::OnScroll(wxMouseEvent& event){
+    std::cout << event.GetWheelRotation() << std::endl;
+    cameraDistance += event.GetWheelRotation() * scrollSensitivity;
+    cameraDistance = glm::clamp(cameraDistance, 2.0f, 100.0f);
+    Refresh(false);
 };
 void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
 
     wxPaintDC dc(this);
     //resizing opengl renderable space. this method is called when the window is resized or has other updates
     const wxSize ClientSize = GetClientSize() * GetContentScaleFactor();
+
+    glMatrixMode(GL_PROJECTION);
+    // aspect = ClientSize.x / ClientSize.y;
+    aspect = static_cast<float>(ClientSize.x) / static_cast<float>(ClientSize.y);
+
+    top = nearVar * tan(glm::radians(fovY)/2.0f);
+    bottom = -top;
+    right = top * aspect;
+    left  = -right;
+
     glViewport(0,0,ClientSize.x, ClientSize.y);
-        // glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
+        glFrustum(left, right, bottom, top, nearVar, farVar);
         // glTranslatef(0.0f,0.0f,-2.0f);
 
         //CUSTOM ROTATION METHOD USING MY OWN FUNCTIONS 
@@ -167,74 +199,79 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
         // glm::mat4 cameraMatrix = glm::mat4_cast(cameraQuat);
         // glMultMatrixf(glm::value_ptr(cameraMatrix));
 
-        cameraPos.x = target.x + 2.0f * cos(glm::radians(pitch)) * sin(glm::radians(-yaw));
-        cameraPos.z = target.z + 2.0f * cos(glm::radians(pitch)) * cos(glm::radians(-yaw));
-        cameraPos.y = target.y + 2.0f * sin(glm::radians(pitch));
+        cameraPos.x = target.x + cameraDistance * cos(glm::radians(pitch)) * sin(glm::radians(-yaw));
+        cameraPos.z = target.z + cameraDistance * cos(glm::radians(pitch)) * cos(glm::radians(-yaw));
+        cameraPos.y = target.y + cameraDistance * sin(glm::radians(pitch));
 
         glm::mat4 cameraMatrix = glm::lookAt(cameraPos, target, glm::vec3(0,1,0));
         glMultMatrixf(glm::value_ptr(cameraMatrix));
         
-
-    glBegin(GL_QUADS);
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, greenColour);
-        glNormal3f( 0.0f, 0.0f, 1.0f);
-        glTexCoord2f(0, 0); glVertex3f( 0.5f, 0.5f, 0.5f);
-        glTexCoord2f(1, 0); glVertex3f(-0.5f, 0.5f, 0.5f);
-        glTexCoord2f(1, 1); glVertex3f(-0.5f,-0.5f, 0.5f);
-        glTexCoord2f(0, 1); glVertex3f( 0.5f,-0.5f, 0.5f);
-    glEnd();
-
+        glDisable(GL_CULL_FACE);
+    //positive x indicator 
     glBegin(GL_QUADS);
         glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, redColour);
-        glNormal3f( 0.0f, 0.0f,-1.0f);
-        glTexCoord2f(0, 0); glVertex3f(-0.5f,-0.5f,-0.5f);
-        glTexCoord2f(1, 0); glVertex3f(-0.5f, 0.5f,-0.5f);
-        glTexCoord2f(1, 1); glVertex3f( 0.5f, 0.5f,-0.5f);
-        glTexCoord2f(0, 1); glVertex3f( 0.5f,-0.5f,-0.5f);
+        glNormal3f( 0.0f, 0.0f, 1.0f);
+        //bottom left corner
+        glTexCoord2f(0, 0); glVertex3f( 0.0f, 0.0f, 0.0f);
+        //bottom right corner 
+        glTexCoord2f(1, 0); glVertex3f(1.0f, 0.0f, 0.0f);
+        //top right corner
+        glTexCoord2f(1, 1); glVertex3f(1.0f,1.0f, 0.0f);
+        //top left corner
+        glTexCoord2f(0, 1); glVertex3f( 0.0f,1.0f, 0.0f);
     glEnd();
 
+    
+    //positive y indicator 
+    glBegin(GL_QUADS);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, greenColour);
+        glNormal3f( 0.0f, 1.0f, 0.0f);
+        //bottom left corner
+        glTexCoord2f(0, 0); glVertex3f( 0.0f, 0.0f, 0.0f);
+        //bottom right corner 
+        glTexCoord2f(1, 0); glVertex3f(1.0f, 0.0f, 0.0f);
+        //top right corner
+        glTexCoord2f(1, 1); glVertex3f(1.0f,0.0f, 1.0f);
+        //top left corner
+        glTexCoord2f(0, 1); glVertex3f( 0.0f, 0.0f, 1.0f);
+    glEnd();
+
+    //positive z indicator 
     glBegin(GL_QUADS);
         glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blueColour);
-        glNormal3f( 0.0f, 1.0f, 0.0f);
-        glTexCoord2f(0, 0); glVertex3f( 0.5f, 0.5f, 0.5f);
-        glTexCoord2f(1, 0); glVertex3f( 0.5f, 0.5f,-0.5f);
-        glTexCoord2f(1, 1); glVertex3f(-0.5f, 0.5f,-0.5f);
-        glTexCoord2f(0, 1); glVertex3f(-0.5f, 0.5f, 0.5f);
+        glNormal3f( 0.0f, 0.0f, 1.0f);
+        //bottom left corner
+        glTexCoord2f(0, 0); glVertex3f( 0.0f, 0.0f, 0.0f);
+        //bottom right corner 
+        glTexCoord2f(1, 0); glVertex3f(0.0f, 0.0f, 1.0f);
+        //top right corner
+        glTexCoord2f(1, 1); glVertex3f(0.0f,1.0f, 1.0f);
+        //top left corner
+        glTexCoord2f(0, 1); glVertex3f( 0.0f,1.0f, 0.0f);
     glEnd();
 
-    glBegin(GL_QUADS);
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, yellowColour);
-        glNormal3f( 0.0f,-1.0f, 0.0f);
-        glTexCoord2f(0, 0); glVertex3f(-0.5f,-0.5f,-0.5f);
-        glTexCoord2f(1, 0); glVertex3f( 0.5f,-0.5f,-0.5f);
-        glTexCoord2f(1, 1); glVertex3f( 0.5f,-0.5f, 0.5f);
-        glTexCoord2f(0, 1); glVertex3f(-0.5f,-0.5f, 0.5f);
-    glEnd();
 
-    glBegin(GL_QUADS);
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, purpleColour);
-        glNormal3f( 1.0f, 0.0f, 0.0f);
-        glTexCoord2f(0, 0); glVertex3f( 0.5f, 0.5f, 0.5f);
-        glTexCoord2f(1, 0); glVertex3f( 0.5f,-0.5f, 0.5f);
-        glTexCoord2f(1, 1); glVertex3f( 0.5f,-0.5f,-0.5f);
-        glTexCoord2f(0, 1); glVertex3f( 0.5f, 0.5f,-0.5f);
-    glEnd();
 
-    glBegin(GL_QUADS);
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, whiteColour);
-        glNormal3f(-1.0f, 0.0f, 0.0f);
-        glTexCoord2f(0, 0); glVertex3f(-0.5f,-0.5f,-0.5f);
-        glTexCoord2f(1, 0); glVertex3f(-0.5f,-0.5f, 0.5f);
-        glTexCoord2f(1, 1); glVertex3f(-0.5f, 0.5f, 0.5f);
-        glTexCoord2f(0, 1); glVertex3f(-0.5f, 0.5f,-0.5f);
+    glEnable(GL_CULL_FACE);
+    glLineWidth(1.0f);
+    glBegin(GL_LINES);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, greyColour);
+
+        glNormal3f(0.0f, 1.0f, 0.0f);
+        for ( int i = 0 ; i < sizeof(gridPoints) / sizeof(gridPoints[0]); i++){
+            glVertex3f(gridPoints[i][0], 0.0f, gridPoints[i][1]);
+        } 
+
     glEnd();
-        glFlush();
-        SwapBuffers();
+    glFlush();
+    SwapBuffers();
+
     // std::cout << "WINDOW REFRESHING: " << ClientSize.x << ", " << ClientSize.y << std::endl;
 };
 
 
 void MyGLCanvas::OnRightDown(wxMouseEvent& event){
+    //starting the timer to call the onholding method every 8 ms
     holdTimer->Start(8);
     startingRPos = event.GetPosition();
     // std::cout << "RIGHT MOUSE PRESSED: " << startingRPos.x << ", " << startingRPos.y << std::endl;
