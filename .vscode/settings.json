@@ -16,6 +16,11 @@
   }
  
 },
+"files.associations": {
+  "typeinfo": "cpp",
+  "ostream": "cpp",
+  "cmath": "cpp"
+},
 //  "terminal.integrated.defaultProfile.windows": "MSYS2 mingw64",
 //  "terminal.integrated.env.windows": {
 //     "PATH": "C:\\msys64\\mingw64\\bin;${env:PATH}"

@@ -15,6 +15,8 @@
  
 #include "main.h"
 #include <iostream>
+#include <fstream>
+#include <sstream>
 
 //glm for mathematical objects
 #include <glm/glm.hpp>      
@@ -26,7 +28,9 @@
 
 //enums
 enum{
-    viewTimerID = wxID_HIGHEST + 1,
+    ID_VIEW_TIMER = wxID_HIGHEST + 1,
+    ID_MOVE_VIEW_TIMER = wxID_HIGHEST + 2,
+    ID_OPEN_FILE = 1
 };
 
 //functions 
@@ -46,9 +50,24 @@ bool clampQuat(const glm::quat& q, float minPitch, float maxPitch){
 //overriding constructors 
 
 MyFrame::MyFrame() : wxFrame(NULL, wxID_ANY, "SussySlicer v0 - BETA"/*, wxDefaultPosition, wxSize(500, 500)*/){
-    auto* canvas = new MyGLCanvas(this);
+    canvas = new MyGLCanvas(this);
+    STLManager = new STLHandler();
+    //making menu bar 
+    wxMenuBar *menuBar = new wxMenuBar;
 
+    wxMenu *menuFile = new wxMenu;
+    menuFile -> Append(ID_OPEN_FILE, "&Open STL File\tCtrl-O");
+    menuFile->Append(wxID_EXIT, "&Exit the application\tCtrl-Q");
+
+    menuBar->Append(menuFile, "&File");
+
+    SetMenuBar(menuBar);
+
+    //bindingn to event manager
+    Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
+    Bind(wxEVT_MENU, &MyFrame::OnOpenFile, this, ID_OPEN_FILE);
 };
+
 
 
 
@@ -68,16 +87,18 @@ MyGLCanvas::MyGLCanvas(wxWindow* parent) : wxGLCanvas(
         wxFULL_REPAINT_ON_RESIZE
 ){
     auto* context = new MyGLContext(this);
-    holdTimer = new wxTimer(this, viewTimerID);
-   
+    holdTimer = new wxTimer(this, ID_VIEW_TIMER);
+    moveTimer = new wxTimer(this, ID_MOVE_VIEW_TIMER);
     ComputeGrid();
-
     Bind(wxEVT_PAINT, &MyGLCanvas::OnPaint, this);
     Bind(wxEVT_MOUSEWHEEL, &MyGLCanvas::OnScroll, this);
     Bind(wxEVT_KEY_DOWN, &MyGLCanvas::OnKeyDown, this);
     Bind(wxEVT_RIGHT_DOWN, &MyGLCanvas::OnRightDown, this);
     Bind(wxEVT_RIGHT_UP, &MyGLCanvas::OnRightUp, this);
-    Bind(wxEVT_TIMER, &MyGLCanvas::OnRightHolding, this, viewTimerID);
+    Bind(wxEVT_TIMER, &MyGLCanvas::OnRightHolding, this, ID_VIEW_TIMER);
+    Bind(wxEVT_MIDDLE_DOWN, &MyGLCanvas::OnMiddleDown, this);
+    Bind(wxEVT_MIDDLE_UP, &MyGLCanvas::OnMiddleUp, this);
+    Bind(wxEVT_TIMER, &MyGLCanvas::OnMiddleHolding, this, ID_MOVE_VIEW_TIMER);
 };
 
 MyGLContext::MyGLContext(wxGLCanvas* canvas) : wxGLContext(canvas){
@@ -108,6 +129,7 @@ void MyGLCanvas::OnKeyDown(wxKeyEvent& event){
     case WXK_ESCAPE:
         pitch = 0.0f;
         yaw = 0.0f;
+        target = glm::vec3(0,0,0);
         
         //old rotation modes
         // OGXDelta = 0.0f;
@@ -138,13 +160,11 @@ void MyGLCanvas::OnKeyDown(wxKeyEvent& event){
 };
 
 void MyGLCanvas::OnScroll(wxMouseEvent& event){
-    std::cout << event.GetWheelRotation() << std::endl;
     cameraDistance += event.GetWheelRotation() * scrollSensitivity;
-    cameraDistance = glm::clamp(cameraDistance, 2.0f, 100.0f);
+    cameraDistance = glm::clamp(cameraDistance, 200.0f, 100000.0f);
     Refresh(false);
 };
 void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
-
     wxPaintDC dc(this);
     //resizing opengl renderable space. this method is called when the window is resized or has other updates
     const wxSize ClientSize = GetClientSize() * GetContentScaleFactor();
@@ -164,49 +184,16 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
 
         glLoadIdentity();
         glFrustum(left, right, bottom, top, nearVar, farVar);
-        // glTranslatef(0.0f,0.0f,-2.0f);
-
-        //CUSTOM ROTATION METHOD USING MY OWN FUNCTIONS 
-        // //x mouse motion should rotate around the y axis
-        // glRotatef(TempXDelta, 0.0f, 1.0f, 0.0f);
-        // //y mouse motion should rotate around the x axis
-        // float X;
-        // float Z;
-        // if(TempXDelta >= 0){
-        //     X = (std::abs(TempXDelta-180.0f))/(90.0f) - 1.0f;
-        //     if (TempXDelta<= 90.0f){
-        //         Z = TempXDelta/90.0f;
-        //     }else if(TempXDelta <= 270.0f){
-        //         Z = (TempXDelta-180.0f)/90.0f;
-        //     }else{
-        //         Z = (TempXDelta - 360.0f)/90.0f;
-        //     }
-        // }else{
-        //     X = (std::abs(TempXDelta+180.0f))/(90.0f) - 1.0f;
-        //     if(TempXDelta >= -90.0f){
-        //         Z = TempXDelta/90.0f;
-        //     }else if(TempXDelta >= -270.0f){
-        //         Z = (TempXDelta + 180.0f )/90.0f;
-        //     }else{
-        //         Z = (TempXDelta +360.0f)/90.0f;
-        //     }
-        // }
-        // std::cout << TempXDelta << "; " << X << ", " << Z << std::endl;
-        // glRotatef(TempYDelta, X, 0.0f, Z);
-        
-
-        //ROTATION USING QUATERNIONS 
-        // glm::mat4 cameraMatrix = glm::mat4_cast(cameraQuat);
-        // glMultMatrixf(glm::value_ptr(cameraMatrix));
 
         cameraPos.x = target.x + cameraDistance * cos(glm::radians(pitch)) * sin(glm::radians(-yaw));
         cameraPos.z = target.z + cameraDistance * cos(glm::radians(pitch)) * cos(glm::radians(-yaw));
         cameraPos.y = target.y + cameraDistance * sin(glm::radians(pitch));
-
+        // std::cout<<yaw<< ", " << pitch << std::endl;
         glm::mat4 cameraMatrix = glm::lookAt(cameraPos, target, glm::vec3(0,1,0));
         glMultMatrixf(glm::value_ptr(cameraMatrix));
         
         glDisable(GL_CULL_FACE);
+        
     //positive x indicator 
     glBegin(GL_QUADS);
         glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, redColour);
@@ -250,14 +237,28 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
         glTexCoord2f(0, 1); glVertex3f( 0.0f,1.0f, 0.0f);
     glEnd();
 
-
-
     glEnable(GL_CULL_FACE);
+    //rendering modlels
+    if(isModelLoaded()){
+        glBegin(GL_TRIANGLES);
+            glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, purpleColour);
+            for (int i = 0; i < renderingTriangles.size()/4; i++){
+                glNormal3f( renderingTriangles.at(i*4)[0], renderingTriangles.at(i*4)[1], renderingTriangles.at(i*4)[2]);
+                //bottom left corner
+                glVertex3f(renderingTriangles.at(i*4 + 1)[0], renderingTriangles.at(i*4 + 1)[1], renderingTriangles.at(i*4 + 1)[2]);
+                glVertex3f(renderingTriangles.at(i*4 + 2)[0], renderingTriangles.at(i*4 + 2)[1], renderingTriangles.at(i*4 + 2)[2]);
+                glVertex3f(renderingTriangles.at(i*4 + 3)[0], renderingTriangles.at(i*4 + 3)[1], renderingTriangles.at(i*4 + 3)[2]);
+ 
+            }
+       glEnd();
+    }
+
     glLineWidth(1.0f);
     glBegin(GL_LINES);
         glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, greyColour);
 
         glNormal3f(0.0f, 1.0f, 0.0f);
+        //OPTIMIZE THIS
         for ( int i = 0 ; i < sizeof(gridPoints) / sizeof(gridPoints[0]); i++){
             glVertex3f(gridPoints[i][0], 0.0f, gridPoints[i][1]);
         } 
@@ -273,17 +274,11 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
 void MyGLCanvas::OnRightDown(wxMouseEvent& event){
     //starting the timer to call the onholding method every 8 ms
     holdTimer->Start(8);
-    startingRPos = event.GetPosition();
     // std::cout << "RIGHT MOUSE PRESSED: " << startingRPos.x << ", " << startingRPos.y << std::endl;
 };
 void MyGLCanvas::OnRightUp(wxMouseEvent& event){
     holdTimer->Stop();
     holdingR = false;
-
-    //old lookiung method
-    //on release, the original delta variables become the old temporary values
-    // OGXDelta = TempXDelta;
-    // OGYDelta = TempYDelta;
 
     //resetting deltas
     lx = 0.0f;
@@ -294,16 +289,7 @@ void MyGLCanvas::OnRightUp(wxMouseEvent& event){
 void MyGLCanvas::OnRightHolding(wxTimerEvent& WXUNUSED(event)){
     wxPoint mousePos = ScreenToClient(::wxGetMousePosition());
 
-    //old looking method
-    // //while holding, the temp delta variables are updated
-    // TempXDelta = OGXDelta + (mousePos.x - startingRPos.x );
-    // TempYDelta = OGYDelta + (mousePos.y - startingRPos.y );
-    
-    // TempXDelta = std::fmod(TempXDelta, 360.0f);
-    // if(TempYDelta > 89.0f) TempYDelta = 89.0f;
-    // else if (TempYDelta < -89.0f) TempYDelta = -89.0f;
-
-    //new looking method
+   //new looking method
     if(holdingR){
         dx = mousePos.x - lx;
         dy = mousePos.y - ly;
@@ -318,21 +304,51 @@ void MyGLCanvas::OnRightHolding(wxTimerEvent& WXUNUSED(event)){
     yaw += dx*sensitivity;
     pitch = glm::clamp(pitch, -89.0f, 89.0f);
 
-    //camera methhod 2
-    
-    // yawQuat = glm::angleAxis(glm::radians(yaw), glm::vec3(0,1,0));
-    // glm::vec3 right = glm::rotate(yawQuat, glm::vec3(1,0,0));
-    // pitchQuat = glm::angleAxis(glm::radians(pitch), right);
-
-    // cameraQuat = yawQuat * pitchQuat;// * cameraQuat;
-    // cameraQuat = glm::normalize(cameraQuat);
-
-    // std::cout << "Right is holding down: " << cameraQuat.x << std::endl;
     lx = mousePos.x;
     ly = mousePos.y;
     Refresh(false);
 };
 
+void MyGLCanvas::OnMiddleDown(wxMouseEvent& event){
+    // std::cout<<"middle down" << std::endl;
+    moveTimer->Start(8);
+};
+void MyGLCanvas::OnMiddleUp(wxMouseEvent&event){
+    // std::cout <<"middle up" << std::endl;
+    moveTimer->Stop();
+    holdingM = false;
+
+    mlx, mdy = 0.0f;
+};
+
+void MyGLCanvas::OnMiddleHolding(wxTimerEvent& WXUNUSED(event)){
+    // std::cout<<"holding middle clik" <<std::endl;
+    wxPoint mousePos = ScreenToClient(::wxGetMousePosition());
+    if (holdingM){
+        mdx = mousePos.x - mlx;
+        mdy = mousePos.y - mly;
+    }else{
+        mlx = mousePos.x;
+        mly = mousePos.y;
+        mdx, mdy = 0.0f;
+
+        holdingM = true;
+    }
+
+    target.y +=  mdy * moveSensitivity * ((89.0f - abs(pitch))/89.0f);
+    
+    //looking down
+    target.z += mdy * moveSensitivity * -cos(glm::radians(yaw)) * (abs(pitch)/89.0f); 
+    target.x += mdy * moveSensitivity * sin(glm::radians(yaw)) * (abs(pitch)/89.0f); 
+
+    //looking sideways 
+    target.x += mdx * moveSensitivity * -cos(glm::radians(yaw));
+    target.z += mdx * moveSensitivity * -sin(glm::radians(yaw));
+
+    mlx = mousePos.x;
+    mly = mousePos.y;
+    Refresh(false);
+};
 
 //calling implementation macro for myapp clas s
 wxIMPLEMENT_APP(MyApp);
