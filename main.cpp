@@ -30,7 +30,8 @@
 enum{
     ID_VIEW_TIMER = wxID_HIGHEST + 1,
     ID_MOVE_VIEW_TIMER = wxID_HIGHEST + 2,
-    ID_OPEN_FILE = 1
+    ID_OPEN_FILE = 1,
+    ID_SLICE = 2
 };
 
 //functions 
@@ -51,12 +52,14 @@ bool clampQuat(const glm::quat& q, float minPitch, float maxPitch){
 
 MyFrame::MyFrame() : wxFrame(NULL, wxID_ANY, "SussySlicer v0 - BETA"/*, wxDefaultPosition, wxSize(500, 500)*/){
     canvas = new MyGLCanvas(this);
+    slicer = new Slicer();
     STLManager = new STLHandler();
     //making menu bar 
     wxMenuBar *menuBar = new wxMenuBar;
 
     wxMenu *menuFile = new wxMenu;
     menuFile -> Append(ID_OPEN_FILE, "&Open STL File\tCtrl-O");
+    menuFile->Append(ID_SLICE, "&Slice Currently Loaded Model\tCtrl-S");
     menuFile->Append(wxID_EXIT, "&Exit the application\tCtrl-Q");
 
     menuBar->Append(menuFile, "&File");
@@ -66,6 +69,7 @@ MyFrame::MyFrame() : wxFrame(NULL, wxID_ANY, "SussySlicer v0 - BETA"/*, wxDefaul
     //bindingn to event manager
     Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
     Bind(wxEVT_MENU, &MyFrame::OnOpenFile, this, ID_OPEN_FILE);
+    Bind(wxEVT_MENU, &MyFrame::OnSlice, this, ID_SLICE);
 };
 
 
@@ -73,11 +77,10 @@ MyFrame::MyFrame() : wxFrame(NULL, wxID_ANY, "SussySlicer v0 - BETA"/*, wxDefaul
 
 MyGLCanvas::MyGLCanvas(wxWindow* parent) : wxGLCanvas( 
         parent,
-        // Construct the attributes
         []{
             wxGLAttributes attrs;
             attrs.Defaults();
-            attrs.PlatformDefaults(); // optional but recommended
+            attrs.PlatformDefaults(); 
             attrs.EndList();
             return attrs;
         }(),

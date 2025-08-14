@@ -19,6 +19,103 @@ class MyApp : public  wxApp {
         virtual bool OnInit();
 };
 
+struct triangle {
+    std::array<glm::dvec3, 3> verticies;
+    double min,max;
+};
+
+class Slicer{
+    public:
+
+
+        void setSlicingTris(std::vector<std::array<double,3>> renderingTris){
+            //clearing lists from previous slicing
+            sTris.clear();
+            points.clear();
+            maxHeight = -100000000000000.0f;
+            minHeight = 100000000000000.0f;
+
+            //remove every fourth vector, which is the normal vector which is useless
+            for (int i = (renderingTris.size()/4)-1; i >= 0; i--){
+                renderingTris.erase(renderingTris.begin() + (i*4) );
+            }
+
+            //DEBUGGING PRINTING
+            std::cout << "size after erase: " << renderingTris.size() << std::endl;
+            for ( int i = 0; i < renderingTris.size(); i++){
+                std::cout << renderingTris.at(i)[0] << ", " <<renderingTris.at(i)[1] << ", " << renderingTris.at(i)[2]<< std::endl;
+            }
+
+        
+            //converting the list of points into triangle structs 
+            for (int i = 0; i < renderingTris.size()/3; i++){
+                sTris.push_back({glm::dvec3(renderingTris.at(i)[0], renderingTris.at(i)[1],renderingTris.at(i)[2]), glm::dvec3(renderingTris.at(i+1)[0], renderingTris.at(i+1)[1],renderingTris.at(i+1)[2]), glm::dvec3(renderingTris.at(i+2)[0], renderingTris.at(i+2)[1],renderingTris.at(i+2)[2])});
+            }
+        };
+
+        
+
+        void slice(){
+            //finding min and max height
+            for (int tri = 0; tri < sTris.size(); tri++){
+                for (int v = 0; v < 3; v++){
+                    maxHeight = glm::max(maxHeight, sTris.at(tri).verticies[v].y);
+                    minHeight = glm::min(minHeight, sTris.at(tri).verticies[v].y);
+                }
+            }
+            std::cout << "max: " << maxHeight << " min: " << minHeight << std::endl;
+
+            //moving the model to z=0
+            if (minHeight != 0.0f){
+                for (int i = 0; i < sTris.size(); i++){
+                    for (int v = 0; v < 3; v++){
+                        sTris.at(i).verticies[v].y -= minHeight;
+                    }
+                }
+                maxHeight -= minHeight;
+                minHeight =0.0f;
+            }
+
+            std::cout << "max: " << maxHeight << " min: " << minHeight << std::endl;
+            std::cout << sTris.size() << std::endl;
+            double z;
+            std::vector<glm::dvec2> currentPoints;
+            //main slicing loop
+            //iterating through all layers
+            for ( int layer = 0; layer < (maxHeight / layerHeight); layer++){
+                //defining the z coordinate for convience 
+                z = layer * layerHeight;
+                
+                //iterating through all triangles
+                for (int tri = 0; tri < sTris.size(); tri++){
+                    //use glm::min(z, y) maybe???
+                    //iterating through the verticies of this current triangle
+                    for (int v = 0; v < 3; v++){
+                        //if the y vertex is below the current slicing level, then break to triangle loop 
+                        if (sTris.at(tri).verticies[v].y < z ){
+                            //breaking out of verticies loop
+                            break;
+                        }
+                    }
+
+                    currentPoints.push_back({ /*x value*/ 0,z});
+                }
+            }
+        };
+
+        void makeToolPath();
+
+        void writeToolPath();
+
+        double layerHeight = 0.2f;
+
+    private:
+        double maxHeight;
+        double minHeight;
+
+        std::vector<triangle> sTris;
+        std::vector<std::vector<glm::dvec2>> points;
+};
 
 class MyGLCanvas : public wxGLCanvas {
     public:
@@ -173,8 +270,9 @@ class MyFrame : public wxFrame{
         //constuructor 
         MyFrame();
     private:
-        MyGLCanvas* canvas;
-        STLHandler* STLManager;
+        MyGLCanvas *canvas;
+        STLHandler *STLManager;
+        Slicer *slicer;
         //methods
         void OnExit(wxCommandEvent& event){
             Close(true);
@@ -207,6 +305,15 @@ class MyFrame : public wxFrame{
                 STLManager->parseASCII(canvas->renderingTriangles, inputFile);
                 // std::cout << canvas -> triangles.at(1)[0] << ", " << canvas -> triangles.at(1)[1]<< ", " << canvas -> triangles.at(1)[2] << std::endl;
                 canvas->loadModel();
+            }
+        };
+        void OnSlice(wxCommandEvent& event){
+            if (canvas->isModelLoaded()){
+                slicer->setSlicingTris(canvas->renderingTriangles);
+                slicer->slice();
+
+            }else{
+                wxMessageBox("There is no model loaded", "Slice Error", wxCLOSE | wxICON_ERROR);
             }
         };
 };
