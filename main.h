@@ -19,9 +19,58 @@ class MyApp : public  wxApp {
         virtual bool OnInit();
 };
 
-struct triangle {
-    std::array<glm::dvec3, 3> verticies;
-    double min,max;
+class Triangle {
+    public:
+        Triangle(std::array<glm::dvec3, 3> v){
+            verticies = v;
+        };
+        std::array<glm::dvec3, 3> verticies;
+
+        double getMin(){
+            min = glm::min(verticies[0].y, verticies[1].y, verticies[2].y);
+            return min;
+        }
+
+        glm::dvec3 getMinPoint(){
+            getMin();
+            for (int v = 0 ; v < 3 ; v ++ ){
+                if (verticies.at(v).y == min){
+                    return verticies.at(v);
+                }
+            }
+        }
+        
+        glm::dvec3 getMaxPoint(){
+            getMax();
+            for (int v = 0 ; v < 3 ; v ++ ){
+                if (verticies.at(v).y == max){
+                    return verticies.at(v);
+                }
+            }
+        }
+
+        double getMax(){
+            max = glm::max(verticies[0].y, verticies[1].y, verticies[2].y);
+            return max;
+        }
+
+        double getOther(){
+            for (int v = 0 ; v < 3 ; v++){
+                if(verticies[v].y != max && verticies[v].y != min){
+                    oi = v;
+                    return verticies[v].y;
+                }
+            }
+        }
+
+        glm::dvec3 getOtherPoint(){
+            return verticies[oi];
+        }
+
+    private:
+        double max, min;
+        int oi;
+        
 };
 
 class Slicer{
@@ -40,16 +89,20 @@ class Slicer{
                 renderingTris.erase(renderingTris.begin() + (i*4) );
             }
 
-            //DEBUGGING PRINTING
-            std::cout << "size after erase: " << renderingTris.size() << std::endl;
-            for ( int i = 0; i < renderingTris.size(); i++){
-                std::cout << renderingTris.at(i)[0] << ", " <<renderingTris.at(i)[1] << ", " << renderingTris.at(i)[2]<< std::endl;
-            }
+            // //DEBUGGING PRINTING
+            // std::cout << "size after erase: " << renderingTris.size() << std::endl;
+            // for ( int i = 0; i < renderingTris.size(); i++){
+            //     std::cout << renderingTris.at(i)[0] << ", " <<renderingTris.at(i)[1] << ", " << renderingTris.at(i)[2]<< std::endl;
+            // }
 
         
             //converting the list of points into triangle structs 
             for (int i = 0; i < renderingTris.size()/3; i++){
-                sTris.push_back({glm::dvec3(renderingTris.at(i)[0], renderingTris.at(i)[1],renderingTris.at(i)[2]), glm::dvec3(renderingTris.at(i+1)[0], renderingTris.at(i+1)[1],renderingTris.at(i+1)[2]), glm::dvec3(renderingTris.at(i+2)[0], renderingTris.at(i+2)[1],renderingTris.at(i+2)[2])});
+                sTris.push_back( Triangle( { 
+                    glm::dvec3(renderingTris.at(i*3)[0], renderingTris.at(i*3)[1],renderingTris.at(i*3)[2]), 
+                    glm::dvec3(renderingTris.at((i*3)+1)[0], renderingTris.at((i*3)+1)[1],renderingTris.at((i*3)+1)[2]), 
+                    glm::dvec3(renderingTris.at((i*3)+2)[0], renderingTris.at((i*3)+2)[1],renderingTris.at((i*3)+2)[2])
+                }));
             }
         };
 
@@ -75,32 +128,87 @@ class Slicer{
                 maxHeight -= minHeight;
                 minHeight =0.0f;
             }
+            // std::cout << " pringint triagnles \n\n\n\n\n" << std::endl;
+
+            //     for (int tri = 0; tri < sTris.size(); tri++){
+            //         for ( int  v = 0; v  < 3 ; v++){
+            //             std::cout << sTris.at(tri).verticies[v].x << ", " << sTris.at(tri).verticies[v].y << ", " << sTris.at(tri).verticies[v].z << std::endl;
+            //         }
+            //     }
+
+            std::cout << " \n\n\n\n\n" << std::endl;
 
             std::cout << "max: " << maxHeight << " min: " << minHeight << std::endl;
             std::cout << sTris.size() << std::endl;
             double z;
+            glm::dvec3 v1,v2;
             std::vector<glm::dvec2> currentPoints;
             //main slicing loop
             //iterating through all layers
+            std::cout<< "before slicing loop" << std::endl;
             for ( int layer = 0; layer < (maxHeight / layerHeight); layer++){
-                //defining the z coordinate for convience 
-                z = layer * layerHeight;
-                
-                //iterating through all triangles
-                for (int tri = 0; tri < sTris.size(); tri++){
-                    //use glm::min(z, y) maybe???
-                    //iterating through the verticies of this current triangle
-                    for (int v = 0; v < 3; v++){
-                        //if the y vertex is below the current slicing level, then break to triangle loop 
-                        if (sTris.at(tri).verticies[v].y < z ){
-                            //breaking out of verticies loop
-                            break;
-                        }
-                    }
 
-                    currentPoints.push_back({ /*x value*/ 0,z});
+                //defining the z coordinate for convience 
+                z = static_cast<double>(layer) * layerHeight;
+
+                //clearing current points
+                currentPoints.clear();
+                //iterating through all triangles
+
+                std::cout<<"slicing layer "<< layer << " at z " << z << std::endl;
+                for (int tri = 0; tri < sTris.size(); tri++){
+                    std::cout << "slicing triangle " << tri << " at layer " << layer << " at z " << z << std::endl; 
+                    //if the current layer is in between then min and max of the current triangle 
+                    if (sTris.at(tri).getMin() <= z && sTris.at(tri).getMax() >=z){
+                        std::cout<<"triangle " << tri << " is in range" << std::endl;
+
+                        //if there is a point on the plane
+                        if (sTris.at(tri).verticies[0].y == z || sTris.at(tri).verticies[1].y == z || sTris.at(tri).verticies[2].y == z ){
+                            //push all points that lie on the plane
+                            for (int v = 0 ; v < 3 ; v++){
+                                if (sTris.at(tri).verticies[v].y == z){
+                                    currentPoints.push_back({sTris.at(tri).verticies[v].x, sTris.at(tri).verticies[v].y});
+                                }
+                            }
+                        }
+                        //if no points are on the plane
+                        //push two intersecting points
+                        else{
+                            //find odd point out
+                            //odd point is the min
+                            if (sTris.at(tri).getOther() > z){
+                                v1 = sTris.at(tri).getMinPoint();
+                            }
+                            //odd point is the max
+                            else{
+                                v1 = sTris.at(tri).getMaxPoint();
+                            }
+                            v2 = sTris.at(tri).getOtherPoint();
+                            currentPoints.push_back({
+                                //x intersecction
+                                ( z + (( (v2.y - v1.y)/(v2.x - v1.x) ) * v1.x) - v1.y )
+                                                /
+                                ( (v2.y - v1.y)/(v2.x - v1.x) ),
+                                //z intersection
+                                ( z + (( (v2.y - v1.y)/(v2.z - v1.z) ) * v1.z) - v1.y )
+                                                /
+                                ( (v2.y - v1.y)/(v2.z - v1.z) )
+                            });
+                        }
+
+                    }
+                    
+
                 }
+                //pushing current points to final list of points
+                points.push_back(currentPoints);
+                // std::cout << "printing out points for layer  " <<layer  << std::endl;
+                // for ( int hi =0 ; hi < currentPoints.size(); hi++){
+                //     std::cout << currentPoints.at(hi).x << ", " << currentPoints.at(hi).y << std::endl;
+                // }
             }
+            std::cout<< "done slicing" << std::endl;
+            // doneSlicing = true;
         };
 
         void makeToolPath();
@@ -109,12 +217,15 @@ class Slicer{
 
         double layerHeight = 0.2f;
 
+        bool doneSlicing = false;
+
     private:
         double maxHeight;
         double minHeight;
 
-        std::vector<triangle> sTris;
-        std::vector<std::vector<glm::dvec2>> points;
+        std::vector<Triangle> sTris;
+        
+        public: std::vector<std::vector<glm::dvec2>> points;
 };
 
 class MyGLCanvas : public wxGLCanvas {
@@ -133,7 +244,9 @@ class MyGLCanvas : public wxGLCanvas {
         bool isModelLoaded(){
             return loadedModel;
         }
-
+        void setSlicer(Slicer *s){
+            slicer = s;
+        }
     private:
         const GLfloat greenColour[4] = {0.0f, 1.0f, 0.0f, 1.0f};
         const GLfloat redColour[4] = {1.0f, 0.0f, 0.0f, 1.0f};
@@ -143,6 +256,7 @@ class MyGLCanvas : public wxGLCanvas {
         const GLfloat whiteColour[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         const GLfloat pinkColour[4] = {1.0f, 0.0f, 0.96f, 1.0f};
         const GLfloat greyColour[4] = {0.9f, 0.9f, 0.9f, 1.0f};
+        const GLfloat blackColour[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 
         bool loadedModel = false;
 
@@ -206,6 +320,8 @@ class MyGLCanvas : public wxGLCanvas {
 
         wxTimer* holdTimer; 
         wxTimer* moveTimer; 
+
+        Slicer *slicer;
         
         void ComputeGrid(){
             //making grid
@@ -223,6 +339,9 @@ class MyGLCanvas : public wxGLCanvas {
             }
         };
 
+
+
+        //event methods
         void OnPaint(wxPaintEvent& event);
         void OnMiddleDown(wxMouseEvent& event);
         void OnMiddleUp(wxMouseEvent& event);

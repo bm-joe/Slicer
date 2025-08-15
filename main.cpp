@@ -53,6 +53,7 @@ bool clampQuat(const glm::quat& q, float minPitch, float maxPitch){
 MyFrame::MyFrame() : wxFrame(NULL, wxID_ANY, "SussySlicer v0 - BETA"/*, wxDefaultPosition, wxSize(500, 500)*/){
     canvas = new MyGLCanvas(this);
     slicer = new Slicer();
+    canvas->setSlicer(slicer);
     STLManager = new STLHandler();
     //making menu bar 
     wxMenuBar *menuBar = new wxMenuBar;
@@ -241,6 +242,8 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
     glEnd();
 
     glEnable(GL_CULL_FACE);
+
+
     //rendering modlels
     if(isModelLoaded()){
         glBegin(GL_TRIANGLES);
@@ -254,6 +257,21 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
  
             }
        glEnd();
+    }
+
+    if (slicer->doneSlicing){
+        //load points 
+        double z = 0.0f;
+        glPointSize(5.0f);
+        glBegin(GL_POINTS);
+            glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blackColour);
+            for (int i = 0; i < slicer->points.size(); i++){
+                z = static_cast<double>(i) * slicer -> layerHeight;
+                for (int j = 0; j < slicer->points.at(i).size(); j++){
+                    glVertex3f(slicer->points.at(i).at(j).x, z, slicer->points.at(i).at(j).y);
+                }
+            }
+        glEnd();
     }
 
     glLineWidth(1.0f);
