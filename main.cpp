@@ -198,48 +198,48 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
         
         glDisable(GL_CULL_FACE);
         
-    //positive x indicator 
-    glBegin(GL_QUADS);
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, redColour);
-        glNormal3f( 0.0f, 0.0f, 1.0f);
-        //bottom left corner
-        glTexCoord2f(0, 0); glVertex3f( 0.0f, 0.0f, 0.0f);
-        //bottom right corner 
-        glTexCoord2f(1, 0); glVertex3f(1.0f, 0.0f, 0.0f);
-        //top right corner
-        glTexCoord2f(1, 1); glVertex3f(1.0f,1.0f, 0.0f);
-        //top left corner
-        glTexCoord2f(0, 1); glVertex3f( 0.0f,1.0f, 0.0f);
-    glEnd();
+    // //positive x indicator 
+    // glBegin(GL_QUADS);
+    //     glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, redColour);
+    //     glNormal3f( 0.0f, 0.0f, 1.0f);
+    //     //bottom left corner
+    //     glTexCoord2f(0, 0); glVertex3f( 0.0f, 0.0f, 0.0f);
+    //     //bottom right corner 
+    //     glTexCoord2f(1, 0); glVertex3f(1.0f, 0.0f, 0.0f);
+    //     //top right corner
+    //     glTexCoord2f(1, 1); glVertex3f(1.0f,1.0f, 0.0f);
+    //     //top left corner
+    //     glTexCoord2f(0, 1); glVertex3f( 0.0f,1.0f, 0.0f);
+    // glEnd();
 
     
-    //positive y indicator 
-    glBegin(GL_QUADS);
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, greenColour);
-        glNormal3f( 0.0f, 1.0f, 0.0f);
-        //bottom left corner
-        glTexCoord2f(0, 0); glVertex3f( 0.0f, 0.0f, 0.0f);
-        //bottom right corner 
-        glTexCoord2f(1, 0); glVertex3f(1.0f, 0.0f, 0.0f);
-        //top right corner
-        glTexCoord2f(1, 1); glVertex3f(1.0f,0.0f, 1.0f);
-        //top left corner
-        glTexCoord2f(0, 1); glVertex3f( 0.0f, 0.0f, 1.0f);
-    glEnd();
+    // //positive y indicator 
+    // glBegin(GL_QUADS);
+    //     glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, greenColour);
+    //     glNormal3f( 0.0f, 1.0f, 0.0f);
+    //     //bottom left corner
+    //     glTexCoord2f(0, 0); glVertex3f( 0.0f, 0.0f, 0.0f);
+    //     //bottom right corner 
+    //     glTexCoord2f(1, 0); glVertex3f(1.0f, 0.0f, 0.0f);
+    //     //top right corner
+    //     glTexCoord2f(1, 1); glVertex3f(1.0f,0.0f, 1.0f);
+    //     //top left corner
+    //     glTexCoord2f(0, 1); glVertex3f( 0.0f, 0.0f, 1.0f);
+    // glEnd();
 
-    //positive z indicator 
-    glBegin(GL_QUADS);
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blueColour);
-        glNormal3f( 0.0f, 0.0f, 1.0f);
-        //bottom left corner
-        glTexCoord2f(0, 0); glVertex3f( 0.0f, 0.0f, 0.0f);
-        //bottom right corner 
-        glTexCoord2f(1, 0); glVertex3f(0.0f, 0.0f, 1.0f);
-        //top right corner
-        glTexCoord2f(1, 1); glVertex3f(0.0f,1.0f, 1.0f);
-        //top left corner
-        glTexCoord2f(0, 1); glVertex3f( 0.0f,1.0f, 0.0f);
-    glEnd();
+    // //positive z indicator 
+    // glBegin(GL_QUADS);
+    //     glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blueColour);
+    //     glNormal3f( 0.0f, 0.0f, 1.0f);
+    //     //bottom left corner
+    //     glTexCoord2f(0, 0); glVertex3f( 0.0f, 0.0f, 0.0f);
+    //     //bottom right corner 
+    //     glTexCoord2f(1, 0); glVertex3f(0.0f, 0.0f, 1.0f);
+    //     //top right corner
+    //     glTexCoord2f(1, 1); glVertex3f(0.0f,1.0f, 1.0f);
+    //     //top left corner
+    //     glTexCoord2f(0, 1); glVertex3f( 0.0f,1.0f, 0.0f);
+    // glEnd();
 
     glEnable(GL_CULL_FACE);
 
@@ -261,17 +261,20 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
 
     if (slicer->doneSlicing){
         //load points 
-        double z = 0.0f;
-        glPointSize(5.0f);
+        double z = 0.0;
+        glPointSize(3.0f);
+        glDisable(GL_DEPTH_TEST);
         glBegin(GL_POINTS);
-            glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blackColour);
+            glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blueColour);
             for (int i = 0; i < slicer->points.size(); i++){
                 z = static_cast<double>(i) * slicer -> layerHeight;
                 for (int j = 0; j < slicer->points.at(i).size(); j++){
                     glVertex3f(slicer->points.at(i).at(j).x, z, slicer->points.at(i).at(j).y);
                 }
             }
+
         glEnd();
+        glEnable(GL_DEPTH_TEST);
     }
 
     glLineWidth(1.0f);

@@ -12,6 +12,15 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+//defining double comparing methods
+
+bool floatingEquals(double a, double b, double epsilon = 1e-6){
+    return fabs(a-b) < epsilon; 
+}
+bool floatingNotEquals(double a, double b, double epsilon = 1e-6){
+    return fabs(a-b) > epsilon; 
+}
+
 //defining myapp and myframe classes to override later
 class MyApp : public  wxApp {
     public:
@@ -55,12 +64,7 @@ class Triangle {
         }
 
         double getOther(){
-            for (int v = 0 ; v < 3 ; v++){
-                if(verticies[v].y != max && verticies[v].y != min){
-                    oi = v;
-                    return verticies[v].y;
-                }
-            }
+            
         }
 
         glm::dvec3 getOtherPoint(){
@@ -119,7 +123,7 @@ class Slicer{
             std::cout << "max: " << maxHeight << " min: " << minHeight << std::endl;
 
             //moving the model to z=0
-            if (minHeight != 0.0f){
+            if (minHeight != 0.0){
                 for (int i = 0; i < sTris.size(); i++){
                     for (int v = 0; v < 3; v++){
                         sTris.at(i).verticies[v].y -= minHeight;
@@ -146,7 +150,7 @@ class Slicer{
             //main slicing loop
             //iterating through all layers
             std::cout<< "before slicing loop" << std::endl;
-            for ( int layer = 0; layer < (maxHeight / layerHeight); layer++){
+            for ( int layer = 0; layer < (maxHeight / layerHeight) +1; layer++){
 
                 //defining the z coordinate for convience 
                 z = static_cast<double>(layer) * layerHeight;
@@ -155,50 +159,71 @@ class Slicer{
                 currentPoints.clear();
                 //iterating through all triangles
 
-                std::cout<<"slicing layer "<< layer << " at z " << z << std::endl;
+                // std::cout<<"slicing layer "<< layer << " at z " << z << std::endl;
                 for (int tri = 0; tri < sTris.size(); tri++){
-                    std::cout << "slicing triangle " << tri << " at layer " << layer << " at z " << z << std::endl; 
-                    //if the current layer is in between then min and max of the current triangle 
-                    if (sTris.at(tri).getMin() <= z && sTris.at(tri).getMax() >=z){
-                        std::cout<<"triangle " << tri << " is in range" << std::endl;
+                    // std::cout <<  "slicing triangle " << tri << " at layer " << layer << " at z " << z << std::endl; 
+                    //if the current layer is in between then min and max of the current triangle
 
+                    if (sTris.at(tri).getMin() <= z && sTris.at(tri).getMax() >= z || floatingEquals(sTris.at(tri).getMin(), z) || floatingEquals(sTris.at(tri).getMax(), z)){
+                        // std::cout<<"triangle " << tri << " is in range at y = " << sTris.at(tri).getMin() << " and y = " << sTris.at(tri).getMax() <<std::endl;
+
+            
                         //if there is a point on the plane
-                        if (sTris.at(tri).verticies[0].y == z || sTris.at(tri).verticies[1].y == z || sTris.at(tri).verticies[2].y == z ){
+                        if (floatingEquals(sTris.at(tri).verticies[0].y , z ) || floatingEquals(sTris.at(tri).verticies[1].y, z) || floatingEquals(sTris.at(tri).verticies[2].y , z) ){
                             //push all points that lie on the plane
                             for (int v = 0 ; v < 3 ; v++){
-                                if (sTris.at(tri).verticies[v].y == z){
-                                    currentPoints.push_back({sTris.at(tri).verticies[v].x, sTris.at(tri).verticies[v].y});
+                                if (floatingEquals(sTris.at(tri).verticies[v].y , z)){
+                                    currentPoints.push_back({sTris.at(tri).verticies[v].x, sTris.at(tri).verticies[v].z});
                                 }
                             }
+
+                            // std::cout<< "point is on the plane" << std::endl;
                         }
                         //if no points are on the plane
                         //push two intersecting points
                         else{
+                            // std::cout << "point is not on the plane " << std::endl;
                             //find odd point out
-                            //odd point is the min
-                            if (sTris.at(tri).getOther() > z){
-                                v1 = sTris.at(tri).getMinPoint();
+                            
+                            //running total APPROACH:
+                            std::vector<glm::dvec3> above;
+                            std::vector<glm::dvec3> below;
+
+                            for (int v = 0; v < 3; v++){
+                                if (sTris.at(tri).verticies[v].y > z){
+                                    above.push_back(sTris.at(tri).verticies[v]);
+                                }else if (sTris.at(tri).verticies[v].y < z){
+                                    below.push_back(sTris.at(tri).verticies[v]);
+                                }else{
+                                    std::cout << "\n\n\nSOMETHING IS REALLY WRONG " << std::endl;
+                                    std::abort();
+                                }
                             }
-                            //odd point is the max
-                            else{
-                                v1 = sTris.at(tri).getMaxPoint();
+                            
+                            //if look at size of above and below lists
+                            //v1 = odd point out
+                            //v2 = cycles through the common points 
+
+                            for ( int p = 0; p < 2; p++){
+                                //OPTIMIZE THIS
+                                if (above.size() == 1){
+                                    v1 = above.at(0);
+                                    v2 = below.at(p);
+                                }else{
+                                    v1 = below.at(0);
+                                    v2 = above.at(p);
+                                }
+                                currentPoints.push_back({
+                                    //x intersecction
+                                    v1.x + (v2.x - v1.x) * ( (z - v1.y)/(v2.y - v1.y) )
+                                    ,
+                                    //z intersection
+                                    v1.z + (v2.z - v1.z) * ( (z - v1.y)/(v2.y - v1.y) )
+                                });
+                                // std::cout << "intersecting point pushed!" << std::endl;
                             }
-                            v2 = sTris.at(tri).getOtherPoint();
-                            currentPoints.push_back({
-                                //x intersecction
-                                ( z + (( (v2.y - v1.y)/(v2.x - v1.x) ) * v1.x) - v1.y )
-                                                /
-                                ( (v2.y - v1.y)/(v2.x - v1.x) ),
-                                //z intersection
-                                ( z + (( (v2.y - v1.y)/(v2.z - v1.z) ) * v1.z) - v1.y )
-                                                /
-                                ( (v2.y - v1.y)/(v2.z - v1.z) )
-                            });
                         }
-
                     }
-                    
-
                 }
                 //pushing current points to final list of points
                 points.push_back(currentPoints);
@@ -208,14 +233,14 @@ class Slicer{
                 // }
             }
             std::cout<< "done slicing" << std::endl;
-            // doneSlicing = true;
+            doneSlicing = true;
         };
 
         void makeToolPath();
 
         void writeToolPath();
 
-        double layerHeight = 0.2f;
+        double layerHeight = 0.2;
 
         bool doneSlicing = false;
 
