@@ -148,14 +148,33 @@ void MyGLCanvas::OnKeyDown(wxKeyEvent& event){
         Refresh(false);
         break;
     case WXK_UP:
-        gridScale += 0.1;
-        ComputeGrid();
+        // gridScale += 0.1;
+        // ComputeGrid();
+        
+        if (ti < slicer->sTris.size()-1){
+            ti++;
+        }
+        
+
         Refresh(false);
         break;
     case WXK_DOWN:
-        ComputeGrid();
-        gridScale -= 0.1;
+        // ComputeGrid();
+        // gridScale -= 0.1;
+        
+        if (ti>0){
+            ti--;
+        }
+
         Refresh(false);
+        break;
+    //p
+    case 'P':
+    case 'p':
+        std::cout<<"\n\n\n"<<std::endl;
+        for (int v = 0; v < 3; v++){
+            std::cout<< slicer->sTris.at(ti).verticies[v].x<< ", "<<slicer->sTris.at(ti).verticies[v].y<<", "<< slicer->sTris.at(ti).verticies[v].z<<std::endl;
+        }
         break;
     default:
         event.Skip();
@@ -251,28 +270,43 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
             for (int i = 0; i < renderingTriangles.size()/4; i++){
                 glNormal3f( renderingTriangles.at(i*4)[0], renderingTriangles.at(i*4)[1], renderingTriangles.at(i*4)[2]);
                 //bottom left corner
-                glVertex3f(renderingTriangles.at(i*4 + 1)[0], renderingTriangles.at(i*4 + 1)[1], renderingTriangles.at(i*4 + 1)[2]);
-                glVertex3f(renderingTriangles.at(i*4 + 2)[0], renderingTriangles.at(i*4 + 2)[1], renderingTriangles.at(i*4 + 2)[2]);
-                glVertex3f(renderingTriangles.at(i*4 + 3)[0], renderingTriangles.at(i*4 + 3)[1], renderingTriangles.at(i*4 + 3)[2]);
+                glVertex3d(renderingTriangles.at(i*4 + 1)[0], renderingTriangles.at(i*4 + 1)[1], renderingTriangles.at(i*4 + 1)[2]);
+                glVertex3d(renderingTriangles.at(i*4 + 2)[0], renderingTriangles.at(i*4 + 2)[1], renderingTriangles.at(i*4 + 2)[2]);
+                glVertex3d(renderingTriangles.at(i*4 + 3)[0], renderingTriangles.at(i*4 + 3)[1], renderingTriangles.at(i*4 + 3)[2]);
  
             }
        glEnd();
     }
 
+    glLineWidth(1.0f);
+    glPointSize(5.0f);
+    
     if (slicer->doneSlicing){
         //load points 
         double z = 0.0;
-        glPointSize(3.0f);
         glDisable(GL_DEPTH_TEST);
-        glBegin(GL_POINTS);
+        glBegin(GL_LINES);
             glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blueColour);
-            for (int i = 0; i < slicer->points.size(); i++){
-                z = static_cast<double>(i) * slicer -> layerHeight;
-                for (int j = 0; j < slicer->points.at(i).size(); j++){
-                    glVertex3f(slicer->points.at(i).at(j).x, z, slicer->points.at(i).at(j).y);
+            for (int i = 0; i < slicer->segments.size(); i++){
+                z = (static_cast<double>(i) * slicer-> layerHeight) + (slicer->layerHeight/2.0);
+                for (int j = 0; j < slicer->segments.at(i).size(); j++){
+                    glVertex3d(slicer->segments.at(i).at(j).at(0).x, z, slicer->segments.at(i).at(j).at(0).y);
+                    glVertex3d(slicer->segments.at(i).at(j).at(1).x, z, slicer->segments.at(i).at(j).at(1).y);
                 }
             }
 
+        glEnd();
+            //debugging thing
+        glLineWidth(2.0f);
+        glBegin(GL_LINES);
+            
+            glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, redColour);
+            glVertex3d(slicer->sTris.at(ti).verticies[0].x, slicer->sTris.at(ti).verticies[0].y, slicer->sTris.at(ti).verticies[0].z);
+            glVertex3d(slicer->sTris.at(ti).verticies[1].x, slicer->sTris.at(ti).verticies[1].y, slicer->sTris.at(ti).verticies[1].z);
+            glVertex3d(slicer->sTris.at(ti).verticies[1].x, slicer->sTris.at(ti).verticies[1].y, slicer->sTris.at(ti).verticies[1].z);
+            glVertex3d(slicer->sTris.at(ti).verticies[2].x, slicer->sTris.at(ti).verticies[2].y, slicer->sTris.at(ti).verticies[2].z);
+            glVertex3d(slicer->sTris.at(ti).verticies[2].x, slicer->sTris.at(ti).verticies[2].y, slicer->sTris.at(ti).verticies[2].z);
+            glVertex3d(slicer->sTris.at(ti).verticies[0].x, slicer->sTris.at(ti).verticies[0].y, slicer->sTris.at(ti).verticies[0].z);
         glEnd();
         glEnable(GL_DEPTH_TEST);
     }
