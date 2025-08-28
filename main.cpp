@@ -30,6 +30,7 @@
 enum{
     ID_VIEW_TIMER = wxID_HIGHEST + 1,
     ID_MOVE_VIEW_TIMER = wxID_HIGHEST + 2,
+    ID_SLICING_PROGRESS_TIMER = wxID_HIGHEST + 3,
     ID_OPEN_FILE = 1,
     ID_SLICE = 2
 };
@@ -53,7 +54,9 @@ bool clampQuat(const glm::quat& q, float minPitch, float maxPitch){
 MyFrame::MyFrame() : wxFrame(NULL, wxID_ANY, "SussySlicer v0 - BETA"/*, wxDefaultPosition, wxSize(500, 500)*/){
     canvas = new MyGLCanvas(this);
     slicer = new Slicer();
+    gaugeOverlay = new GaugeOverlay(this);
     canvas->setSlicer(slicer);
+
     STLManager = new STLHandler();
     //making menu bar 
     wxMenuBar *menuBar = new wxMenuBar;
@@ -67,10 +70,15 @@ MyFrame::MyFrame() : wxFrame(NULL, wxID_ANY, "SussySlicer v0 - BETA"/*, wxDefaul
 
     SetMenuBar(menuBar);
 
+
+    slicingTimer = new wxTimer(this, ID_SLICING_PROGRESS_TIMER);
     //bindingn to event manager
     Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
     Bind(wxEVT_MENU, &MyFrame::OnOpenFile, this, ID_OPEN_FILE);
+
+    Bind(wxEVT_TIMER, &MyFrame::OnSlicing, this, ID_SLICING_PROGRESS_TIMER);
     Bind(wxEVT_MENU, &MyFrame::OnSlice, this, ID_SLICE);
+    Bind(wxEVT_MOVE, &MyFrame::OnMove, this );
 };
 
 
@@ -100,9 +108,9 @@ MyGLCanvas::MyGLCanvas(wxWindow* parent) : wxGLCanvas(
     Bind(wxEVT_RIGHT_DOWN, &MyGLCanvas::OnRightDown, this);
     Bind(wxEVT_RIGHT_UP, &MyGLCanvas::OnRightUp, this);
     Bind(wxEVT_TIMER, &MyGLCanvas::OnRightHolding, this, ID_VIEW_TIMER);
-    Bind(wxEVT_MIDDLE_DOWN, &MyGLCanvas::OnMiddleDown, this);
-    Bind(wxEVT_MIDDLE_UP, &MyGLCanvas::OnMiddleUp, this);
-    Bind(wxEVT_TIMER, &MyGLCanvas::OnMiddleHolding, this, ID_MOVE_VIEW_TIMER);
+    Bind(wxEVT_LEFT_DOWN, &MyGLCanvas::OnLeftDown, this);
+    Bind(wxEVT_LEFT_UP, &MyGLCanvas::OnLeftUp, this);
+    Bind(wxEVT_TIMER, &MyGLCanvas::OnLeftHolding, this, ID_MOVE_VIEW_TIMER);
 };
 
 MyGLContext::MyGLContext(wxGLCanvas* canvas) : wxGLContext(canvas){
@@ -118,10 +126,17 @@ MyGLContext::MyGLContext(wxGLCanvas* canvas) : wxGLContext(canvas){
     GLfloat ambient[] = { 0.5, 0.5, 0.5, 0.5 };
     glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
 
+    glEnable(GL_NORMALIZE);
+
+    // Smooth shading
+    glShadeModel(GL_SMOOTH);
+
     // set viewing projection
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glFrustum(-0.5, 0.5, -0.5, 0.5, 1, 3);
+
+
 
 };
 
@@ -184,7 +199,7 @@ void MyGLCanvas::OnKeyDown(wxKeyEvent& event){
 
 void MyGLCanvas::OnScroll(wxMouseEvent& event){
     cameraDistance += event.GetWheelRotation() * scrollSensitivity;
-    cameraDistance = glm::clamp(cameraDistance, 200.0f, 100000.0f);
+    cameraDistance = glm::clamp(cameraDistance, 20.0f, 100000.0f);
     Refresh(false);
 };
 void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
@@ -215,7 +230,7 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
         glm::mat4 cameraMatrix = glm::lookAt(cameraPos, target, glm::vec3(0,1,0));
         glMultMatrixf(glm::value_ptr(cameraMatrix));
         
-        glDisable(GL_CULL_FACE);
+        // glDisable(GL_CULL_FACE);
         
     // //positive x indicator 
     // glBegin(GL_QUADS);
@@ -260,7 +275,7 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
     //     glTexCoord2f(0, 1); glVertex3f( 0.0f,1.0f, 0.0f);
     // glEnd();
 
-    glEnable(GL_CULL_FACE);
+    // glEnable(GL_CULL_FACE);
 
 
     //rendering modlels
@@ -268,11 +283,11 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
         glBegin(GL_TRIANGLES);
             glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, purpleColour);
             for (int i = 0; i < renderingTriangles.size()/4; i++){
-                glNormal3f( renderingTriangles.at(i*4)[0], renderingTriangles.at(i*4)[1], renderingTriangles.at(i*4)[2]);
+                glNormal3f( renderingTriangles.at(i*4).x, renderingTriangles.at(i*4).y, renderingTriangles.at(i*4).z);
                 //bottom left corner
-                glVertex3d(renderingTriangles.at(i*4 + 1)[0], renderingTriangles.at(i*4 + 1)[1], renderingTriangles.at(i*4 + 1)[2]);
-                glVertex3d(renderingTriangles.at(i*4 + 2)[0], renderingTriangles.at(i*4 + 2)[1], renderingTriangles.at(i*4 + 2)[2]);
-                glVertex3d(renderingTriangles.at(i*4 + 3)[0], renderingTriangles.at(i*4 + 3)[1], renderingTriangles.at(i*4 + 3)[2]);
+                glVertex3d(renderingTriangles.at(i*4 + 1).x, renderingTriangles.at(i*4 + 1).y, renderingTriangles.at(i*4 + 1).z);
+                glVertex3d(renderingTriangles.at(i*4 + 2).x, renderingTriangles.at(i*4 + 2).y, renderingTriangles.at(i*4 + 2).z);
+                glVertex3d(renderingTriangles.at(i*4 + 3).x, renderingTriangles.at(i*4 + 3).y, renderingTriangles.at(i*4 + 3).z);
  
             }
        glEnd();
@@ -367,20 +382,17 @@ void MyGLCanvas::OnRightHolding(wxTimerEvent& WXUNUSED(event)){
     Refresh(false);
 };
 
-void MyGLCanvas::OnMiddleDown(wxMouseEvent& event){
-    // std::cout<<"middle down" << std::endl;
+void MyGLCanvas::OnLeftDown(wxMouseEvent& event){
     moveTimer->Start(8);
 };
-void MyGLCanvas::OnMiddleUp(wxMouseEvent&event){
-    // std::cout <<"middle up" << std::endl;
+void MyGLCanvas::OnLeftUp(wxMouseEvent&event){
     moveTimer->Stop();
     holdingM = false;
 
     mlx, mdy = 0.0f;
 };
 
-void MyGLCanvas::OnMiddleHolding(wxTimerEvent& WXUNUSED(event)){
-    // std::cout<<"holding middle clik" <<std::endl;
+void MyGLCanvas::OnLeftHolding(wxTimerEvent& WXUNUSED(event)){
     wxPoint mousePos = ScreenToClient(::wxGetMousePosition());
     if (holdingM){
         mdx = mousePos.x - mlx;

@@ -73,7 +73,11 @@
   "streambuf": "cpp",
   "text_encoding": "cpp",
   "cinttypes": "cpp",
-  "variant": "cpp"
+  "variant": "cpp",
+  "ratio": "cpp",
+  "semaphore": "cpp",
+  "stop_token": "cpp",
+  "thread": "cpp"
 },
 //  "terminal.integrated.defaultProfile.windows": "MSYS2 mingw64",
 //  "terminal.integrated.env.windows": {

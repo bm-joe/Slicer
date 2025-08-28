@@ -69,41 +69,41 @@ class Slicer{
     public:
 
 
-        void setSlicingTris(std::vector<std::array<double,3>> renderingTris){
+        void slice(std::vector<glm::dvec3> renderingTris){
+            //setting the slicing triangles and adjusting the model to the printbed 
+            std::cout<<"hkejlkfasj"<<std::endl;
             //clearing lists from previous slicing
             sTris.clear();
             segments.clear();
             maxHeight = -100000000000000.0f;
             minHeight = 100000000000000.0f;
 
+            std::cout<<"bi"<<std::endl;
+            int fourthSize = (renderingTris.size()/4) -1;
             //remove every fourth vector, which is the normal vector which is useless
-            for (int i = (renderingTris.size()/4)-1; i >= 0; i--){
+            for (long i = fourthSize; i >= 0; i--){
+                // std::cout<<i<<std::endl;
+                slicingProgress = abs(static_cast<double>(i)-static_cast<double>(fourthSize))/static_cast<double>(fourthSize) * 100.0;
+                // std::cout<<slicingProgress<<std::endl;
                 renderingTris.erase(renderingTris.begin() + (i*4) );
             }
-
-            // //DEBUGGING PRINTING
-            // std::cout << "size after erase: " << renderingTris.size() << std::endl;
-            // for ( int i = 0; i < renderingTris.size(); i++){
-            //     std::cout << renderingTris.at(i)[0] << ", " <<renderingTris.at(i)[1] << ", " << renderingTris.at(i)[2]<< std::endl;
-            // }
-
+            // std::abort();
+            std::cout<<"thru"<<std::endl;
         
-            //converting the list of points into triangle structs 
-            for (int i = 0; i < renderingTris.size()/3; i++){
+
+            for (long i = 0; i < renderingTris.size()/3; i++){
                 sTris.push_back( Triangle( { 
-                    glm::dvec3(renderingTris.at(i*3)[0], renderingTris.at(i*3)[1],renderingTris.at(i*3)[2]), 
-                    glm::dvec3(renderingTris.at((i*3)+1)[0], renderingTris.at((i*3)+1)[1],renderingTris.at((i*3)+1)[2]), 
-                    glm::dvec3(renderingTris.at((i*3)+2)[0], renderingTris.at((i*3)+2)[1],renderingTris.at((i*3)+2)[2])
+                    renderingTris.at(i*3), 
+                    renderingTris.at((i*3)+1), 
+                    renderingTris.at((i*3)+2)
                 }));
             }
-        };
+            std::cout<<"hellko"<<std::endl;
 
-        
-
-        void slice(){
+            std::cout<<"slicing started"<<std::endl;
             //finding min and max height
-            for (int tri = 0; tri < sTris.size(); tri++){
-                for (int v = 0; v < 3; v++){
+            for (long tri = 0; tri < sTris.size(); tri++){
+                for (long v = 0; v < 3; v++){
                     maxHeight = glm::max(maxHeight, sTris.at(tri).verticies[v].y);
                     minHeight = glm::min(minHeight, sTris.at(tri).verticies[v].y);
                 }
@@ -112,8 +112,8 @@ class Slicer{
 
             //moving the model to z=0
             if (minHeight != 0.0){
-                for (int i = 0; i < sTris.size(); i++){
-                    for (int v = 0; v < 3; v++){
+                for (long i = 0; i < sTris.size(); i++){
+                    for (long v = 0; v < 3; v++){
                         sTris.at(i).verticies[v].y -= minHeight;
                     }
                 }
@@ -139,10 +139,10 @@ class Slicer{
             //main slicing loop
             //iterating through all layers
             std::cout<< "before slicing loop" << std::endl;
-            for ( int layer = 0; layer < (maxHeight / layerHeight) +1; layer++){
+            for ( long layer = 0; layer < (maxHeight / layerHeight) +1; layer++){
                 //printing status update
-                std::cout<<layer/(maxHeight/layerHeight)<<"%"<<std::endl;
-
+                slicingProgress = layer/(maxHeight/layerHeight)*100.0;
+                std::cout<<slicingProgress<<std::endl; 
                 //defining the z coordinate for convenience
                 //shifting up by half a layer height to handle coplanar triangles 
                 z = ((static_cast<double>(layer)) * layerHeight) + (layerHeight/2.0);
@@ -152,7 +152,7 @@ class Slicer{
                 //iterating through all triangles
 
                 // std::cout<<"slicing layer "<< layer << " at z " << z << std::endl;
-                for (int tri = 0; tri < sTris.size(); tri++){
+                for (long tri = 0; tri < sTris.size(); tri++){
                     currentArray.at(0) = glm::dvec2();
                     currentArray.at(1) = glm::dvec2();
                     //defining a reference to the current triangle for memory optimization 
@@ -307,12 +307,12 @@ class Slicer{
         double layerHeight = 1.0;
 
         bool doneSlicing = false;
-
+        float slicingProgress = 0.0f;
     private:
         double maxHeight;
         double minHeight;
-
-        public: 
+        
+    public: 
         std::vector<Triangle> sTris;
         
         std::vector<std::vector<std::array<glm::dvec2, 2>>> segments;
@@ -322,7 +322,7 @@ class MyGLCanvas : public wxGLCanvas {
     public:
     //construcotr
         MyGLCanvas(wxWindow* parent);
-        std::vector<std::array<double, 3>> renderingTriangles;        
+        std::vector<glm::dvec3> renderingTriangles;        
 
         void loadModel(){
             loadedModel = true;
@@ -337,7 +337,9 @@ class MyGLCanvas : public wxGLCanvas {
         void setSlicer(Slicer *s){
             slicer = s;
         }
+        
     private:
+
         const GLfloat greenColour[4] = {0.0f, 1.0f, 0.0f, 1.0f};
         const GLfloat redColour[4] = {1.0f, 0.0f, 0.0f, 1.0f};
         const GLfloat blueColour[4] = {0.0f, 0.0f, 1.0f, 0.0f};
@@ -435,9 +437,9 @@ class MyGLCanvas : public wxGLCanvas {
 
         //event methods
         void OnPaint(wxPaintEvent& event);
-        void OnMiddleDown(wxMouseEvent& event);
-        void OnMiddleUp(wxMouseEvent& event);
-        void OnMiddleHolding(wxTimerEvent& WXUNUSED(event));
+        void OnLeftDown(wxMouseEvent& event);
+        void OnLeftUp(wxMouseEvent& event);
+        void OnLeftHolding(wxTimerEvent& WXUNUSED(event));
         void OnKeyDown(wxKeyEvent& event);
         void OnRightDown(wxMouseEvent& event);
         void OnRightUp(wxMouseEvent& event);
@@ -451,7 +453,7 @@ class MyGLCanvas : public wxGLCanvas {
 class STLHandler {
     public:
         //using references (&) to parameters so there isn't a copy of the variable created  
-        void parseASCII(std::vector<std::array<double, 3>>& outputArray, std::ifstream& inputFile){
+        void parseASCII(std::vector<glm::dvec3>& outputArray, std::ifstream& inputFile){
             double vectorStorage[3];
             std::string thisLine;
             while(std::getline(inputFile, thisLine)) {
@@ -463,18 +465,38 @@ class STLHandler {
                     iss >> normalStr;
                     double nx, ny, nz;
                     iss >> nx >> ny >> nz;
-                    outputArray.push_back({nx, ny, nz});
+                    //converting the z up stl to y up model
+                    glm::dvec3 nv = glm::dvec3(nx, nz, -ny);
+                    nv = glm::normalize(nv);
+                    outputArray.push_back(nv);
                     // std::cout << "vertex: " << nx << ", " << ny << ", " << nz << std::endl;
                 }
                 else if(keyword == "vertex"){
                     double vx, vy, vz;
                     iss >> vx >> vy >> vz;
-                    outputArray.push_back({vx, vy, vz});
+
+                    //converting the z up stl to y up model
+                    outputArray.push_back(glm::dvec3(vx, vz, -vy));
                     // std::cout << "vertex: " << vx << ", " << vy << ", " << vz << std::endl;
                 }
             }
         };
+    // private:
+};
+
+class GaugeOverlay : public wxFrame{
+    public:
+        GaugeOverlay(wxWindow* parent) : wxFrame(parent, wxID_ANY, "progress", wxDefaultPosition, wxDefaultSize, wxFRAME_FLOAT_ON_PARENT | wxFRAME_NO_TASKBAR | wxSTAY_ON_TOP){
+            gauge = new wxGauge(this, wxID_ANY, 100);
+            SetClientSize(gauge->GetBestSize());
+        }
+    
+        void setValue(int v){
+            gauge->SetValue(v);
+        }
+
     private:
+        wxGauge *gauge;
 };
 
 class MyFrame : public wxFrame{
@@ -482,9 +504,12 @@ class MyFrame : public wxFrame{
         //constuructor 
         MyFrame();
     private:
+
+        wxTimer* slicingTimer; 
         MyGLCanvas *canvas;
         STLHandler *STLManager;
         Slicer *slicer;
+        GaugeOverlay *gaugeOverlay;
         //methods
         void OnExit(wxCommandEvent& event){
             Close(true);
@@ -515,22 +540,46 @@ class MyFrame : public wxFrame{
                 //ascii stls 
                 // new line character = 10
                 STLManager->parseASCII(canvas->renderingTriangles, inputFile);
+                //processing the stl output and switching it from z up to y up
+
+
                 // std::cout << canvas -> triangles.at(1)[0] << ", " << canvas -> triangles.at(1)[1]<< ", " << canvas -> triangles.at(1)[2] << std::endl;
                 canvas->loadModel();
+                std::cout<<"model is loaded"<<std::endl;
             }
         };
         void OnSlice(wxCommandEvent& event){
             if (canvas->isModelLoaded()){
-                slicer->setSlicingTris(canvas->renderingTriangles);
-                std::thread t(&Slicer::slice, slicer);
-                t.detach();
-                canvas->Refresh(false);
+                gaugeOverlay->Show();
+                Refresh(false);
+                std::thread ts(&Slicer::slice, slicer, canvas->renderingTriangles);
+                ts.detach();
+                slicingTimer->Start(10);
 
             }else{
                 wxMessageBox("There is no model loaded", "Slice Error", wxCLOSE | wxICON_ERROR);
             }
         };
+        
+        void OnMove(wxMoveEvent& event){
+            // event.Skip();
+            if (gaugeOverlay->IsShown()){
+                gaugeOverlay->Move(event.GetPosition());
+            }
+        };
+
+        void OnSlicing(wxTimerEvent& WXUNUSED(event)){
+            gaugeOverlay->setValue(slicer->slicingProgress);
+
+            if(slicer->doneSlicing){
+                canvas->Refresh(false);
+                slicingTimer->Stop();
+                gaugeOverlay->Hide();
+            }
+        }
 };
+
+
 
 class MyGLContext : public wxGLContext {
     public:
