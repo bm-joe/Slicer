@@ -17,8 +17,21 @@
 bool floatingEquals(double a, double b, double epsilon = 1e-5){
     return fabs(a-b) < epsilon; 
 }
-bool floatingNotEquals(double a, double b, double epsilon = 1e-5){
-    return fabs(a-b) > epsilon; 
+
+bool segmentsTouchingTips(std::array<glm::dvec2, 2> seg1, std::array<glm::dvec2, 2> seg2, double epsilon = 1e-2){
+    glm::dvec2 p1, p2, p3, p4;
+    p1 = (seg1[0] - seg2[0]);
+    p2 = (seg1[0] - seg2[1]);
+    p3 = (seg1[1] - seg2[0]);
+    p4 = (seg1[1] - seg2[1]);
+
+    return(
+        sqrt(p1.x + p1.y) < epsilon ||
+        sqrt(p2.x + p2.y) < epsilon ||
+        sqrt(p3.x + p3.y) < epsilon ||
+        sqrt(p4.x + p4.y) < epsilon 
+    );
+    
 }
 
 //defining myapp and myframe classes to override later
@@ -65,10 +78,15 @@ class Triangle {
         int total = 0;
 };
 
+struct polygon{
+    public:
+        std::vector<std::array<glm::dvec2,2>> perimeter;
+        bool isOutline;
+        //empty constructor
+};
+
 class Slicer{
     public:
-
-
         void slice(std::vector<glm::dvec3> renderingTris){
             //setting the slicing triangles and adjusting the model to the printbed 
             std::cout<<"hkejlkfasj"<<std::endl;
@@ -142,7 +160,7 @@ class Slicer{
             for ( long layer = 0; layer < (maxHeight / layerHeight) +1; layer++){
                 //printing status update
                 slicingProgress = layer/(maxHeight/layerHeight)*100.0;
-                std::cout<<slicingProgress<<std::endl; 
+                // std::cout<<slicingProgress<<std::endl; 
                 //defining the z coordinate for convenience
                 //shifting up by half a layer height to handle coplanar triangles 
                 z = ((static_cast<double>(layer)) * layerHeight) + (layerHeight/2.0);
@@ -169,7 +187,7 @@ class Slicer{
                             //one point on the plane
                             if (currentTri.numOfPointsOnPlane() == 1){
                                 //if not on only on plane
-                                if (floatingNotEquals(currentTri.getMax(), z) && floatingNotEquals(currentTri.getMin(), z)){
+                                if (!floatingEquals(currentTri.getMax(), z) && !floatingEquals(currentTri.getMin(), z)){
                                 // std::cout<<"1"<<std::endl;
                                 // getting first vertex
                                 bool c = false;
@@ -298,10 +316,83 @@ class Slicer{
             }
             std::cout<< "done slicing" << std::endl;
             doneSlicing = true;
+            
+            // std::cout<< segmentsTouchingTips({glm::dvec2(0,1), glm::dvec2(100, 13)}, {glm::dvec2(-69, -69), glm::dvec2(100, 13)})<<std::endl;
+
+            makeToolPath();
         };
 
-        void makeToolPath();
+        //call slice() before this
+        void makeToolPath(){
+            std::cout<<"starting tool path!"<<std::endl;
+            //defining list of polygons for each layer
+            std::vector<polygon> currentPolygons;
+            //defining currentpolygon
+            polygon currentPoly;
 
+            //iterating through every layer
+            for ( long layer = 0; layer < segments.size()-1; layer++){
+                //reference to this layer 
+                std::vector<std::array<glm::dvec2, 2>> &thisLayer = segments.at(layer);
+                //remaining segments
+                std::vector<std::array<glm::dvec2, 2>> rSegments = segments.at(layer);
+                
+                //resetting polygons
+                currentPolygons.clear();
+                //resetting polygon
+                currentPoly = polygon();
+                std::cout<<"new layer" << std::endl;
+                //iterating through every segment in that layer
+                for (long segment = 0; segment < thisLayer.size()-1; segment++){
+                    //if the perimeter is empty, add the first segment
+                    if (currentPoly.perimeter.empty()){
+                        currentPoly.perimeter.push_back(rSegments.at(0));
+                        rSegments.erase(rSegments.begin());
+                    }
+
+                    //else do some more processing
+                    else{
+                        bool found = false;
+                        //iterate through all remaining segments to find one that connects to the current open segment of the polygon 
+                        //if it can't find another matching segment, check the starting segment of the current polygon and if it matches then the polygon is complete
+                        for (long s = 0; s < rSegments.size() -1 ; s++){
+                        // for (std::array<glm::dvec2, 2> s : rSegments){
+                            //if current remaining segment matches up to last segment of the polygon
+                            if (segmentsTouchingTips(rSegments.at(s), currentPoly.perimeter.at(currentPoly.perimeter.size()-1))){
+                                std::cout<<"touching tips!"<<std::endl;
+                                //pushing new segment to polygon, removing it from remaining segments 
+                                found = true;
+                                currentPoly.perimeter.push_back(rSegments.at(s));
+                                rSegments.erase(rSegments.begin() + s);
+                                break;
+                            }
+                            //if this segment completes the polygon
+                                //this should be somewhere else 
+                            // else if (segmentsTouchingTips(rSegments.at(s), currentPoly.perimeter.at(0))){
+                            //     std::cout<<"touching tips to end the polygon!"<<std::endl;
+                            //     found = true;
+                            //     rSegments.erase(rSegments.begin() + s);
+                            //     //making new polygon
+                            //     currentPolygons.push_back(currentPoly);
+                            //     currentPoly = polygon();
+                            //     break;
+                            // }
+                        }
+                        if (!found){
+                            //else print error
+                            std::cout<<"error"<<std::endl;
+                            // std::abort();
+                        }
+                    }
+                    
+                } 
+                //pushing polygons
+                toolpath.push_back(currentPolygons);
+            }
+            std::cout<<"done toolpath"<<std::endl;
+        };
+
+        //call maketoolpath() before this
         void writeToolPath();
 
         double layerHeight = 1.0;
@@ -311,6 +402,7 @@ class Slicer{
     private:
         double maxHeight;
         double minHeight;
+        std::vector<std::vector<polygon>> toolpath;
         
     public: 
         std::vector<Triangle> sTris;
@@ -563,9 +655,9 @@ class MyFrame : public wxFrame{
         
         void OnMove(wxMoveEvent& event){
             // event.Skip();
-            if (gaugeOverlay->IsShown()){
+            // if (gaugeOverlay->IsShown()){
                 gaugeOverlay->Move(event.GetPosition());
-            }
+            // }
         };
 
         void OnSlicing(wxTimerEvent& WXUNUSED(event)){
@@ -575,11 +667,10 @@ class MyFrame : public wxFrame{
                 canvas->Refresh(false);
                 slicingTimer->Stop();
                 gaugeOverlay->Hide();
+
             }
         }
 };
-
-
 
 class MyGLContext : public wxGLContext {
     public:

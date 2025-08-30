@@ -55,6 +55,7 @@ MyFrame::MyFrame() : wxFrame(NULL, wxID_ANY, "SussySlicer v0 - BETA"/*, wxDefaul
     canvas = new MyGLCanvas(this);
     slicer = new Slicer();
     gaugeOverlay = new GaugeOverlay(this);
+    gaugeOverlay->Move(this->GetScreenPosition());
     canvas->setSlicer(slicer);
 
     STLManager = new STLHandler();
