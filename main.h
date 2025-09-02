@@ -14,25 +14,42 @@
 #include <iostream>
 //defining double comparing methods
 
-bool floatingEquals(double a, double b, double epsilon = 1e-5){
+bool floatingEquals(double a, double b, double epsilon = 1e-6){
     return fabs(a-b) < epsilon; 
 }
 
-bool segmentsTouchingTips(std::array<glm::dvec2, 2> seg1, std::array<glm::dvec2, 2> seg2, double epsilon = 1e-2){
-    glm::dvec2 p1, p2, p3, p4;
-    p1 = (seg1[0] - seg2[0]);
-    p2 = (seg1[0] - seg2[1]);
-    p3 = (seg1[1] - seg2[0]);
-    p4 = (seg1[1] - seg2[1]);
+static inline double sqdist(const glm::dvec2 &a, const glm::dvec2 &b){
+    glm::dvec2 c = a - b;
+    return c.x * c.x + c.y * c.y;
+}
 
-    return(
-        sqrt(p1.x + p1.y) < epsilon ||
-        sqrt(p2.x + p2.y) < epsilon ||
-        sqrt(p3.x + p3.y) < epsilon ||
-        sqrt(p4.x + p4.y) < epsilon 
-    );
+bool segmentsTouchingTips(const std::array<glm::dvec2, 2> &seg1, const std::array<glm::dvec2, 2> &seg2, double epsilon = 1e-6){
+    double sqrEpsilon = epsilon * epsilon;
+
+    for (int i = 0; i < 2; i++){
+        for (int j = 0; j < 2; j++){
+            if (sqdist(seg1[i], seg2[j])<=sqrEpsilon){
+                return true;
+            }
+        }
+    }
+    return false;
+    
+    // glm::dvec2 p1, p2, p3, p4;
+    // p1 = (seg1[0] - seg2[0]);
+    // p2 = (seg1[0] - seg2[1]);
+    // p3 = (seg1[1] - seg2[0]);
+    // p4 = (seg1[1] - seg2[1]);
+
+    // return(
+    //     sqrt(p1.x + p1.y) < epsilon ||
+    //     sqrt(p2.x + p2.y) < epsilon ||
+    //     sqrt(p3.x + p3.y) < epsilon ||
+    //     sqrt(p4.x + p4.y) < epsilon 
+    // );
     
 }
+
 
 //defining myapp and myframe classes to override later
 class MyApp : public  wxApp {
@@ -81,9 +98,88 @@ class Triangle {
 struct polygon{
     public:
         std::vector<std::array<glm::dvec2,2>> perimeter;
-        bool isOutline;
-        //empty constructor
+        //each polygon should have one parent if it is an inline
+        polygon *parent;
+        //polygons can have multiple children
+        std::vector<polygon*> children;
+        
+        double area;
 };
+
+struct solid{
+    public:
+        std::vector<polygon> polygons;
+        solid(polygon p){
+            polygons.push_back(p);
+        }
+};
+
+double calculatePolygonArea(polygon p){
+    //shoelace formula
+    double top = 0.0;
+    double bottom = 0.0;
+    for (int i =0 ; i < p.perimeter.size()-1; i++){
+        top += (p.perimeter.at(i)[0].x * p.perimeter.at(i+1)[0].y);
+        bottom += (p.perimeter.at(i)[0].y * p.perimeter.at(i+1)[0].x);
+    }
+    top += (p.perimeter.at(p.perimeter.size()-1)[0].x * p.perimeter.at(0)[0].y);
+    bottom += (p.perimeter.at(p.perimeter.size()-1)[0].y * p.perimeter.at(0)[0].x);
+    
+    return std::abs(top-bottom)/2.0;
+
+}
+
+bool isIntersecting(const std::array<glm::dvec2, 2> a,const std::array<glm::dvec2, 2> b ){
+    //defining slopes
+    double ma = (a[1].y - a[0].y)/(a[1].x - a[0].x);
+    double mb = (b[1].y - b[0].y)/(b[1].x - b[0].x);
+    double x,y;
+    //checking edge cases:
+    //if lines are paralell 
+    if (floatingEquals(ma, mb )){
+        return false;
+    }
+    //if there is an undefined slope
+    if (floatingEquals(a[1].x - a[0].x, 0.0)){
+        x = a[1].x;
+        y = mb * x + b[0].y - mb * b[0].x; 
+ 
+    }
+    else if (floatingEquals(b[1].x - b[0].x, 0.0)){
+        x = b[1].x;
+        y = ma * x + a[0].y - ma * a[0].x; 
+    }else{
+    //calculating poi 
+    x = 
+    (b[0].y - ( mb ) * (b[0].x) - (a[0].y - ( ma ) * (a[0].x)))
+    /
+    ( ma - mb );
+    
+    y = ma * x + a[0].y - ma * (a[0].x);
+    }
+    // if POI is in the range of the segments 
+    if (std::min(a[0].x, a[1].x) <= x && std::max(a[0].x, a[1].x) >= x && std::min(a[0].y, a[1].y) <= y && std::max(a[0].y, a[1].y) >= y){
+        if (std::min(b[0].x, b[1].x) <= x && std::max(b[0].x, b[1].x) >= x && std::min(b[0].y, b[1].y) <= y && std::max(b[0].y, b[1].y) >= y){
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool isParent(polygon p, polygon c){
+    //check collisions (error checking)
+    for (std::array< glm::dvec2, 2> i: p.perimeter){
+        for (std::array< glm::dvec2, 2> j: c.perimeter){
+            if (isIntersecting(i, j)){
+                std::cout<<"intersecting polygons"<<std::endl;
+                std::abort();
+            }
+        }
+    }
+    //checking if its parent
+    
+}
 
 class Slicer{
     public:
@@ -330,6 +426,8 @@ class Slicer{
             //defining currentpolygon
             polygon currentPoly;
 
+            //creating polygons
+
             //iterating through every layer
             for ( long layer = 0; layer < segments.size()-1; layer++){
                 //reference to this layer 
@@ -341,55 +439,71 @@ class Slicer{
                 currentPolygons.clear();
                 //resetting polygon
                 currentPoly = polygon();
-                std::cout<<"new layer" << std::endl;
+                currentPoly.perimeter.push_back(rSegments.at(0));
+                rSegments.erase(rSegments.begin());
+        // std::cout<<"new layer: " << layer <<std::endl;
                 //iterating through every segment in that layer
-                for (long segment = 0; segment < thisLayer.size()-1; segment++){
-                    //if the perimeter is empty, add the first segment
-                    if (currentPoly.perimeter.empty()){
-                        currentPoly.perimeter.push_back(rSegments.at(0));
-                        rSegments.erase(rSegments.begin());
-                    }
-
-                    //else do some more processing
-                    else{
-                        bool found = false;
-                        //iterate through all remaining segments to find one that connects to the current open segment of the polygon 
-                        //if it can't find another matching segment, check the starting segment of the current polygon and if it matches then the polygon is complete
-                        for (long s = 0; s < rSegments.size() -1 ; s++){
-                        // for (std::array<glm::dvec2, 2> s : rSegments){
-                            //if current remaining segment matches up to last segment of the polygon
-                            if (segmentsTouchingTips(rSegments.at(s), currentPoly.perimeter.at(currentPoly.perimeter.size()-1))){
-                                std::cout<<"touching tips!"<<std::endl;
-                                //pushing new segment to polygon, removing it from remaining segments 
-                                found = true;
-                                currentPoly.perimeter.push_back(rSegments.at(s));
-                                rSegments.erase(rSegments.begin() + s);
-                                break;
-                            }
-                            //if this segment completes the polygon
-                                //this should be somewhere else 
-                            // else if (segmentsTouchingTips(rSegments.at(s), currentPoly.perimeter.at(0))){
-                            //     std::cout<<"touching tips to end the polygon!"<<std::endl;
-                            //     found = true;
-                            //     rSegments.erase(rSegments.begin() + s);
-                            //     //making new polygon
-                            //     currentPolygons.push_back(currentPoly);
-                            //     currentPoly = polygon();
-                            //     break;
-                            // }
+                for (long segment = 0; segment < thisLayer.size(); segment++){
+                    bool found = false;
+                    //iterate through all remaining segments to find one that connects to the current open segment of the polygon 
+                    //if it can't find another matching segment, check the starting segment of the current polygon and if it matches then the polygon is complete
+        // std::cout<<thisLayer.at(segment)[0].x<<", "<<thisLayer.at(segment)[0].y<<" | "<<thisLayer.at(segment)[1].x<<", "<<thisLayer.at(segment)[1].y<<std::endl;
+        // std::cout<< rSegments.size() << std::endl;
+                    for (long s = 0; s < rSegments.size() ; s++){
+                        //if current remaining segment matches up to last segment of the polygon
+                        if (segmentsTouchingTips(rSegments.at(s), currentPoly.perimeter.at(currentPoly.perimeter.size()-1))){
+        // std::cout<<"touching tips!"<<std::endl;
+                            //pushing new segment to polygon, removing it from remaining segments 
+                            found = true;
+                            currentPoly.perimeter.push_back(rSegments.at(s));
+                            rSegments.erase(rSegments.begin() + s);
+                            break;
                         }
-                        if (!found){
-                            //else print error
-                            std::cout<<"error"<<std::endl;
+    
+                    }
+                    if (!found){
+                        //check to see if the polygon is complete 
+                        if (segmentsTouchingTips(currentPoly.perimeter.at(0), currentPoly.perimeter.at(currentPoly.perimeter.size()-1))){
+        // std::cout << "polygon is complete !"<< std::endl;
+                            //erasing poly
+                            currentPolygons.push_back(currentPoly);
+                            currentPoly = polygon();
+                            //start the next polygon if there are still segments remaining
+                            if (!rSegments.empty()){
+                            currentPoly.perimeter.push_back(rSegments.at(0));
+                            rSegments.erase(rSegments.begin());
+                            }
+
+                        }else{
+                        //else print error
+                            std::cout<<"error @layer " << layer <<std::endl;
+                            
                             // std::abort();
                         }
                     }
                     
                 } 
                 //pushing polygons
-                toolpath.push_back(currentPolygons);
+                unprocessedPolygons.push_back(currentPolygons);
             }
-            std::cout<<"done toolpath"<<std::endl;
+            std::cout<<"created polygons"<<std::endl;
+
+            //processing polygons, finding parents and children, assigning to solids. 
+
+            //1. assign every polygon to their own solid
+            //2. compute polygon areas
+            for (std::vector<polygon> layer : unprocessedPolygons){
+                std::vector<solid> temp;
+                for (polygon p : layer){
+                    p.area = calculatePolygonArea(p);
+                    // std::cout<<"area = "<< p.area<<"mm2"<<std::endl;
+                    temp.push_back(solid(p));
+                }
+                solids.push_back(temp);
+            }
+
+            doneToolpath = true;
+
         };
 
         //call maketoolpath() before this
@@ -398,15 +512,17 @@ class Slicer{
         double layerHeight = 1.0;
 
         bool doneSlicing = false;
+        bool doneToolpath = false;
         float slicingProgress = 0.0f;
     private:
         double maxHeight;
         double minHeight;
-        std::vector<std::vector<polygon>> toolpath;
+        std::vector<std::vector<solid>> solids;
         
     public: 
         std::vector<Triangle> sTris;
         
+        std::vector<std::vector<polygon>> unprocessedPolygons;
         std::vector<std::vector<std::array<glm::dvec2, 2>>> segments;
 };
 
@@ -464,7 +580,7 @@ class MyGLCanvas : public wxGLCanvas {
         float left;
 
         const float sensitivity = 0.1f;
-        const float moveSensitivity = 1.0f;
+        const float moveSensitivity = 0.001f;
         const float scrollSensitivity = 1.0f;
 
         float cameraDistance = 2000.0f;

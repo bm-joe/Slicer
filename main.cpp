@@ -297,17 +297,27 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
     glLineWidth(1.0f);
     glPointSize(5.0f);
     
-    if (slicer->doneSlicing){
+    if (slicer->doneToolpath){
         //load points 
         double z = 0.0;
         glDisable(GL_DEPTH_TEST);
         glBegin(GL_LINES);
             glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blueColour);
-            for (int i = 0; i < slicer->segments.size(); i++){
+            // for (int i = 0; i < slicer->segments.size(); i++){
+            //     z = (static_cast<double>(i) * slicer-> layerHeight) + (slicer->layerHeight/2.0);
+            //     for (int j = 0; j < slicer->segments.at(i).size(); j++){
+            //         glVertex3d(slicer->segments.at(i).at(j).at(0).x, z, slicer->segments.at(i).at(j).at(0).y);
+            //         glVertex3d(slicer->segments.at(i).at(j).at(1).x, z, slicer->segments.at(i).at(j).at(1).y);
+            //     }
+            // }
+            for (int i = 0; i < slicer->unprocessedPolygons.size(); i++){
                 z = (static_cast<double>(i) * slicer-> layerHeight) + (slicer->layerHeight/2.0);
-                for (int j = 0; j < slicer->segments.at(i).size(); j++){
-                    glVertex3d(slicer->segments.at(i).at(j).at(0).x, z, slicer->segments.at(i).at(j).at(0).y);
-                    glVertex3d(slicer->segments.at(i).at(j).at(1).x, z, slicer->segments.at(i).at(j).at(1).y);
+                for (polygon p : slicer->unprocessedPolygons.at(i)){
+                  
+                    for (int j = 0; j < p.perimeter.size(); j++){
+                        glVertex3d(p.perimeter.at(j)[0].x, z,p.perimeter.at(j)[0].y);
+                        glVertex3d(p.perimeter.at(j)[1].x, z,p.perimeter.at(j)[1].y);
+                    }
                 }
             }
 
@@ -406,15 +416,15 @@ void MyGLCanvas::OnLeftHolding(wxTimerEvent& WXUNUSED(event)){
         holdingM = true;
     }
 
-    target.y +=  mdy * moveSensitivity * ((89.0f - abs(pitch))/89.0f);
+    target.y +=  mdy * moveSensitivity * cameraDistance * ((89.0f - abs(pitch))/89.0f);
     
     //looking down
-    target.z += mdy * moveSensitivity * -cos(glm::radians(yaw)) * (abs(pitch)/89.0f); 
-    target.x += mdy * moveSensitivity * sin(glm::radians(yaw)) * (abs(pitch)/89.0f); 
+    target.z += mdy * moveSensitivity * cameraDistance*-cos(glm::radians(yaw)) * (abs(pitch)/89.0f); 
+    target.x += mdy * moveSensitivity * cameraDistance* sin(glm::radians(yaw)) * (abs(pitch)/89.0f); 
 
     //looking sideways 
-    target.x += mdx * moveSensitivity * -cos(glm::radians(yaw));
-    target.z += mdx * moveSensitivity * -sin(glm::radians(yaw));
+    target.x += mdx * moveSensitivity *cameraDistance* -cos(glm::radians(yaw));
+    target.z += mdx * moveSensitivity * cameraDistance* -sin(glm::radians(yaw));
 
     mlx = mousePos.x;
     mly = mousePos.y;
