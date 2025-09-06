@@ -302,7 +302,6 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
         double z = 0.0;
         glDisable(GL_DEPTH_TEST);
         glBegin(GL_LINES);
-            glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blueColour);
             // for (int i = 0; i < slicer->segments.size(); i++){
             //     z = (static_cast<double>(i) * slicer-> layerHeight) + (slicer->layerHeight/2.0);
             //     for (int j = 0; j < slicer->segments.at(i).size(); j++){
@@ -310,13 +309,17 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
             //         glVertex3d(slicer->segments.at(i).at(j).at(1).x, z, slicer->segments.at(i).at(j).at(1).y);
             //     }
             // }
-            for (int i = 0; i < slicer->unprocessedPolygons.size(); i++){
+            for (int i = 0; i < slicer->polygons.size(); i++){
                 z = (static_cast<double>(i) * slicer-> layerHeight) + (slicer->layerHeight/2.0);
-                for (polygon p : slicer->unprocessedPolygons.at(i)){
-                  
-                    for (int j = 0; j < p.perimeter.size(); j++){
-                        glVertex3d(p.perimeter.at(j)[0].x, z,p.perimeter.at(j)[0].y);
-                        glVertex3d(p.perimeter.at(j)[1].x, z,p.perimeter.at(j)[1].y);
+                for (std::shared_ptr<polygon> &p : slicer->polygons.at(i)){
+                    if (p.get()->parent == nullptr ){
+                        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, greenColour);
+                    }else{
+                        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blueColour);
+                    }
+                    for (int j = 0; j < p.get()->perimeter.size(); j++){
+                        glVertex3d(p.get()->perimeter.at(j)[0].x, z,p.get()->perimeter.at(j)[0].y);
+                        glVertex3d(p.get()->perimeter.at(j)[1].x, z,p.get()->perimeter.at(j)[1].y);
                     }
                 }
             }
