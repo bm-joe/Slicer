@@ -199,7 +199,7 @@ void MyGLCanvas::OnKeyDown(wxKeyEvent& event){
 };
 
 void MyGLCanvas::OnScroll(wxMouseEvent& event){
-    cameraDistance += event.GetWheelRotation() * scrollSensitivity;
+    cameraDistance += event.GetWheelRotation() * scrollSensitivity ;
     cameraDistance = glm::clamp(cameraDistance, 20.0f, 100000.0f);
     Refresh(false);
 };
@@ -302,7 +302,9 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
         double z = 0.0;
         glDisable(GL_DEPTH_TEST);
         glBegin(GL_LINES);
-            // for (int i = 0; i < slicer->segments.size(); i++){
+
+            //             glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blueColour);
+            // for (int i = 0; i < slicer->segments.size(); i++){  
             //     z = (static_cast<double>(i) * slicer-> layerHeight) + (slicer->layerHeight/2.0);
             //     for (int j = 0; j < slicer->segments.at(i).size(); j++){
             //         glVertex3d(slicer->segments.at(i).at(j).at(0).x, z, slicer->segments.at(i).at(j).at(0).y);
@@ -313,7 +315,7 @@ void MyGLCanvas::OnPaint(wxPaintEvent& WXUNUSED(event)){
                 z = (static_cast<double>(i) * slicer-> layerHeight) + (slicer->layerHeight/2.0);
                 for (std::shared_ptr<polygon> &p : slicer->polygons.at(i)){
                     if (p.get()->parent == nullptr ){
-                        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, greenColour);
+                        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  greenColour);
                     }else{
                         glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blueColour);
                     }

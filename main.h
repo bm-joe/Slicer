@@ -106,7 +106,7 @@ struct polygon{
         //polygons can have multiple children
         std::vector<std::shared_ptr<polygon>> children;
 
-        solid *thisSolid;
+        std::shared_ptr<solid> thisSolid;
         
         double area;
         glm::dvec2 centroid;
@@ -118,6 +118,7 @@ struct solid{
         solid(std::shared_ptr<polygon> p){
             polygons.push_back(p);
         }
+
 };
 
 double calculatePolygonArea(const polygon *p){
@@ -131,7 +132,7 @@ double calculatePolygonArea(const polygon *p){
     top += (p->perimeter.at(p->perimeter.size()-1)[0].x * p->perimeter.at(0)[0].y);
     bottom += (p->perimeter.at(p->perimeter.size()-1)[0].y * p->perimeter.at(0)[0].x);
     
-    std::cout<<"calculated area"<<std::endl;
+    // std::cout<<"calculated area"<<std::endl;
     //signed area formula for centroid calculations
     return (top-bottom)/2.0;
 
@@ -233,7 +234,7 @@ bool isIntersectingRay(const std::array<glm::dvec2, 2> a, const glm::dvec2 point
     if (x >= point.x){
         //checking if segment is in range of y 
         if ( std::min(a[0].y, a[1].y) <= point.y && std::max(a[1].y, a[0].y) >= point.y ){
-            std::cout<<"! ("<<a[0].x<<", "<<a[1].x<<"|"<<point.x<<"), ("<<a[0].y<<", "<<a[1].y<<"|"<<point.y<<")"<<std::endl;
+            // std::cout<<"! ("<<a[0].x<<", "<<a[1].x<<"|"<<point.x<<"), ("<<a[0].y<<", "<<a[1].y<<"|"<<point.y<<")"<<std::endl;
             return true;
         }
     }
@@ -423,7 +424,7 @@ class Slicer{
                             //two points on the plane
                             else if (currentTri.numOfPointsOnPlane() == 2){
 
-                                // std::cout<<"2"<<std::endl;
+                                // std::cout<<"2 "<< layer<< std::endl;
                                 //pushing edge
                                 bool c = false;
                                 for (int i = 0; i < 3; i++){
@@ -437,7 +438,10 @@ class Slicer{
                                             break;
                                         }
                                     }
+                                    
                                 } 
+
+                                currentSegments.push_back(currentArray);
                             }
                             //three points on the plane. coplanar triangle, push all three edges ??!//1/1/11
                             //a better strategy is to ignore coplanar triangles 
@@ -494,11 +498,13 @@ class Slicer{
                             }
 
                         currentSegments.push_back(currentArray);
+
+                        
                         }
-                        // currentSegments.push_back(currentArray);
                     }
                 }
                 //pushing current points to final list of points
+               
                 segments.push_back(currentSegments);
                 // std::cout << "printing out points for layer  " <<layer  << std::endl;
                 // for ( int hi =0 ; hi < currentPoints.size(); hi++){
@@ -507,6 +513,7 @@ class Slicer{
             }
             std::cout<< "done slicing" << std::endl;
             doneSlicing = true;
+
             
             // std::cout<< segmentsTouchingTips({glm::dvec2(0,1), glm::dvec2(100, 13)}, {glm::dvec2(-69, -69), glm::dvec2(100, 13)})<<std::endl;
 
@@ -525,20 +532,30 @@ class Slicer{
 
             //iterating through every layer
             for ( long layer = 0; layer < segments.size()-1; layer++){
+
+    // std::cout<<"new layer: " << layer<< " " << segments.size()-1 <<std::endl;
                 //reference to this layer 
                 std::vector<std::array<glm::dvec2, 2>> &thisLayer = segments.at(layer);
                 //remaining segments
                 std::vector<std::array<glm::dvec2, 2>> rSegments = segments.at(layer);
+
                 
                 //resetting polygons
                 currentPolygons.clear();
+
                 //resetting polygon
                 currentPoly = std::make_shared<polygon>();
+
+    // std::cout<<"hi "<< segments.at(layer+1).size()<<std::endl;
+
+    //------------------------------------------------------- TODO FIX THIS ERROR WHERE ONE LAYER IS RANDOMLY EMPTY---------------------------------------------
                 currentPoly.get()->perimeter.push_back(rSegments.at(0));
+
+
                 rSegments.erase(rSegments.begin());
-        // std::cout<<"new layer: " << layer <<std::endl;
+        std::cout<<"new layer: " << layer<< " " << segments.size()-1 <<std::endl;
                 //iterating through every segment in that layer
-                for (long segment = 0; segment < thisLayer.size(); segment++){
+                for (long segment = 0; segment < thisLayer.size() ; segment++){
                     bool found = false;
                     //iterate through all remaining segments to find one that connects to the current open segment of the polygon 
                     //if it can't find another matching segment, check the starting segment of the current polygon and if it matches then the polygon is complete
@@ -588,61 +605,84 @@ class Slicer{
             //1. assign every polygon to their own solid
             //2. compute polygon areas and centroids 
             for (std::vector<std::shared_ptr<polygon>> layer : polygons){
+                // std::vector<std::shared_ptr<solid>> solidlist;
+                // solidlist.clear();
                 for (std::shared_ptr<polygon> &p : layer){ 
                     p.get()->area = calculatePolygonArea(p.get());
                     p.get()->centroid = calculatePolygonCentroid(p.get());
                     // std::cout<<"area = "<< p.area<<"mm2"<<std::endl;
-                    std::cout<<"centriod = "<< p->centroid.x<<", "<< p->centroid.y<<std::endl;
+                    // std::cout<<"centriod = "<< p->centroid.x<<", "<< p->centroid.y<<std::endl;
 
-                    //DECIDE WHO OWNS THE POLYGONS?? PROBABLY THE LIST NOT THE SOLID. 
-                    solid h = solid(p);
-                    p.get()->thisSolid = &h;
+                    //
+                    std::shared_ptr<solid> h = std::make_shared<solid>(p);
+
+                    p.get()->thisSolid = h;
+                    // solidlist.push_back(h);
+                    
                      
 
                 }
+                // solids.push_back(solidlist);
             }
             std::cout<<"done area"<<std::endl;
             //3. computing heirachy 
             //every layer 
             for ( std::vector<std::shared_ptr<polygon>> l : polygons){
-                std::cout<<"new layer"<<std::endl;
+                // std::cout<<"new layer"<<std::endl;
                 //crossing the polygons with every other polygon on that layer
                 for (int p = 0; p < l.size(); p++){
                     for (int c = l.size() -1; c > -1; c--){
-                        std::cout<<"c: "<<c<<"p: "<< p <<std::endl;
+                        // std::cout<<"c: "<<c<<"p: "<< p <<std::endl;
                         //if the objects aren't the same
-                        if (l.at(p).get() != l.at(c).get()){
+                        if (p!=c){
                             if(isParent(l.at(p), l.at(c))){
                                 //setting the children and parents of the polygons
                                 l.at(p).get()->children.push_back(l.at(c));
-                                l.at(c).get()->parent = l.at(p);
+                                //if the new parent has a smaller area than the child's other parent, makes sure every polygon has the smallest parent
+                                if (l.at(c).get()->parent.get() != nullptr){
+                                    if(l.at(c).get()->parent.get()->area > l.at(p).get()->area){
+                                        l.at(c).get()->parent = l.at(p);
+                                    }
+                                }else{
+                                    l.at(c).get()->parent = l.at(p);
+                                }
                                 
                                 //removing and switching the child's solid to the parent's solid 
-
                                 l.at(c).get()->thisSolid = l.at(p).get()->thisSolid;
                             }
                         }
                     }
                 }
-                //printing relationships 
+                    //after determining all parents and children, complete list of solids  
+                // std::vector<std::shared_ptr<solid>> solidLayer;
+                // solidLayer.clear();
+                // std::cout<<"new layer"<<std::endl;
+                // for (std::shared_ptr<polygon> i : l){
+                //     if (i.get()->parent == nullptr){
+                //         // solidLayer.push_back(std::make_shared<solid>(i));
+                //         std::cout<<"made a solid "<<std::endl;
+                //     }
+                // }
+                // solids.push_back(solidLayer);
 
-                for (std::shared_ptr<polygon> &p : l){
-                    std::cout<<"parents: "<< p.get()->parent << " childresn: "<<p.get()->children.size()<< " area: "<< p.get()->area<<std::endl;
+                // creating print path                 
 
-                }
+                // printing relationships 
+
+                // for (std::shared_ptr<polygon> &p : l){
+                //     std::cout<<"parents: "<< p.get()->parent << " childresn: "<<p.get()->children.size()<< " area: "<< p.get()->area<<std::endl;
+
+                // }
             }
-            std::cout<<"'done toolpath"<<std::endl;
+            std::cout<<"done computing toolpath"<<std::endl;
             doneToolpath = true;
-
-
-
 
         };
 
         //call maketoolpath() before this
         void writeToolPath();
 
-        double layerHeight = 1.0;
+        double layerHeight = 0.2;
 
         bool doneSlicing = false;
         bool doneToolpath = false;
@@ -650,7 +690,7 @@ class Slicer{
     private:
         double maxHeight;
         double minHeight;
-        // std::vector<std::vector<solid>> solids;
+        // std::vector<std::vector<std::shared_ptr<solid>>> solids;
         
     public: 
         std::vector<Triangle> sTris;
@@ -692,6 +732,8 @@ class MyGLCanvas : public wxGLCanvas {
         const GLfloat greyColour[4] = {0.9f, 0.9f, 0.9f, 1.0f};
         const GLfloat blackColour[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 
+        const std::array<const GLfloat*[4], 7> colours = {greenColour, redColour, blueColour, purpleColour, yellowColour, pinkColour, blackColour};
+
         bool loadedModel = false;
 
         //making grid array
@@ -715,7 +757,7 @@ class MyGLCanvas : public wxGLCanvas {
 
         const float sensitivity = 0.1f;
         const float moveSensitivity = 0.001f;
-        const float scrollSensitivity = 1.0f;
+        const float scrollSensitivity = 0.3f;
 
         float cameraDistance = 2000.0f;
 
