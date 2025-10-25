@@ -1,6 +1,7 @@
 //luke fadel slicer header file>? 
 #include "wx/glcanvas.h"
 #include <thread>
+#include <limits>
 #include <memory>
 //test
 #define GLM_ENABLE_EXPERIMENTAL
@@ -15,7 +16,7 @@
 #include <iostream>
 //defining double comparing methods
 
-bool floatingEquals(double a, double b, double epsilon = 1e-6){
+bool floatingEquals(double a, double b, double epsilon = 1e-8   ){
     return fabs(a-b) < epsilon; 
 }
 
@@ -107,6 +108,8 @@ struct polygon{
         std::vector<std::shared_ptr<polygon>> children;
 
         std::shared_ptr<solid> thisSolid;
+
+        int layer = 0;
         
         double area;
         glm::dvec2 centroid;
@@ -114,12 +117,39 @@ struct polygon{
 
 struct solid{
     public:
-        std::vector<std::shared_ptr<polygon>> polygons;
+        std::shared_ptr<polygon> parentPolygon;
         solid(std::shared_ptr<polygon> p){
-            polygons.push_back(p);
+            parentPolygon = p;
         }
 
 };
+
+struct fillPoint{
+    public:
+        glm::dvec2 point;
+        bool jumpPoint = false;
+        fillPoint(glm::dvec2 p, bool jp = false){
+            point = p;
+            jumpPoint = jp;
+        }
+};
+
+//sorting algorithm
+void swap(std::vector<fillPoint> &v, int i1, int i2){
+    fillPoint temp = v[i1];
+    v[i1] = v[i2];
+    v[i2] = temp;
+}
+
+void insertionSort(std::vector<fillPoint> &v){
+    for (int i = 1; i < v.size(); i++){
+        int j = i;
+        while(j > 0 && v[j-1].point.x > v[j].point.x){
+            swap(v, j, j-1);
+            j--;
+        }
+    }
+}
 
 double calculatePolygonArea(const polygon *p){
     //shoelace formula
@@ -162,6 +192,21 @@ glm::dvec2 calculatePolygonCentroid(const polygon *p){
     return glm::dvec2(x,y);
 }
 
+std::array<double,2> calculatePolygonYBounds(const polygon *p){
+    double min = std::numeric_limits<double>::max();
+    double max = std::numeric_limits<double>::min();
+    for( std::array<glm::dvec2, 2> s : p->perimeter){
+        if (s[0].y < min){
+            min = s[0].y;
+        }
+        if (s[0].y > max){
+            max = s[0].y;
+        }
+    }
+    return {min,max};
+}
+
+
 bool isIntersectingSegments(const std::array<glm::dvec2, 2> a,const std::array<glm::dvec2, 2> b ){
     //defining slopes
     double ma = (a[1].y - a[0].y)/(a[1].x - a[0].x);
@@ -200,6 +245,81 @@ bool isIntersectingSegments(const std::array<glm::dvec2, 2> a,const std::array<g
     return false;
 }
 
+bool intersectRay2(const std::array<glm::dvec2, 2>& a,
+                   double y,
+                   glm::dvec2 &output)
+{
+    const double x0 = a[0].x, y0 = a[0].y;
+    const double x1 = a[1].x, y1 = a[1].y;
+
+    const double dx = x1 - x0;
+    const double dy = y1 - y0;
+
+    // If segment is horizontal (dy == 0)
+    if (floatingEquals(dy, 0.0)) {
+        // Segment is horizontal:
+        // - if it's exactly on y (collinear), it's ambiguous (infinite points).
+        //   Decide policy: here we treat it as NO intersection (return false).
+        if (floatingEquals(y, y0)) return false; // collinear -> no single intersection
+        return false; // parallel and different y -> no intersection
+    }
+
+    // Use half-open interval [minY, maxY) to avoid double-counting at vertices.
+    const double minY = std::min(y0, y1);
+    const double maxY = std::max(y0, y1);
+    if (!(y >= minY && y < maxY)) {
+        return false; // y outside segment's vertical span
+    }
+
+    // If segment is vertical, x is constant
+    if (floatingEquals(dx, 0.0)) {
+        output = glm::dvec2(x0, y);
+        return true;
+    }
+
+    // Otherwise compute intersection X
+    const double m = dy / dx;                 // slope (safe because dx != 0)
+    const double b = y0 - m * x0;             // intercept
+    const double ix = (y - b) / m;            // x at given y
+    output = glm::dvec2(ix, y);
+    return true;
+}
+
+// bool intersectRay2(const std::array<glm::dvec2, 2> a, const double y, glm::dvec2 &output){
+
+//     //ray starts at point and shoots both ways at slope of 0
+    
+//     //defining slopes
+//     double ma = (a[1].y - a[0].y)/(a[1].x - a[0].x);
+//     double mb = 0.0;
+
+//     double x;
+//     //checking edge cases:
+
+//     //if lines are paralell 
+//     if (floatingEquals(ma, mb )){
+//         return false;
+//     }
+
+//     //if there is an undefined slope
+//     if (floatingEquals((a[1].x - a[0].x), 0.0)){
+//         //x = x
+//         x = a[1].x;
+//     }
+//     else{
+//         //calculating poi 
+//         x = (y - (a[0].y -( ma * a[0].x)))/ma;
+//     }
+
+//     //checking if segment is in range of y 
+//     if ( std::min(a[0].y, a[1].y) <= y && std::max(a[1].y, a[0].y) >= y ){
+//         // std::cout<<"! ("<<a[0].x<<", "<<a[1].x<<"|"<<point.x<<"), ("<<a[0].y<<", "<<a[1].y<<"|"<<point.y<<")"<<std::endl;
+//         output = glm::dvec2(x, y);
+//         return true;
+//     }
+
+//     return false;
+// }
 bool isIntersectingRay(const std::array<glm::dvec2, 2> a, const glm::dvec2 point ){
 
     //ray starts at point and shoots right at slope of 0
@@ -225,10 +345,6 @@ bool isIntersectingRay(const std::array<glm::dvec2, 2> a, const glm::dvec2 point
         //calculating poi 
         x = (point.y - (a[0].y -( ma * a[0].x)))/ma;
     }
-
-    // if POI is in the range of the segments and ray
-    //segment = {(a[0].x, a[0].y), (a[1].x, a[1].y)}
-    //ray = point.y {x >= point.x}
 
     //if in range of the x
     if (x >= point.x){
@@ -277,31 +393,31 @@ bool isParent(std::shared_ptr<polygon> p, std::shared_ptr<polygon> c){
     return false;
 }
 
+
+
 class Slicer{
     public:
-        void slice(std::vector<glm::dvec3> renderingTris){
+        void slice(std::vector<glm::dvec3> renderingTris, wxString name){
             //setting the slicing triangles and adjusting the model to the printbed 
-            std::cout<<"hkejlkfasj"<<std::endl;
             //clearing lists from previous slicing
             sTris.clear();
             segments.clear();
-            maxHeight = -100000000000000.0f;
-            minHeight = 100000000000000.0f;
 
-            std::cout<<"bi"<<std::endl;
-            int fourthSize = (renderingTris.size()/4) -1;
+            maxHeight = std::numeric_limits<double>::min();
+            minHeight = std::numeric_limits<double>::max();
+
+            int fourthSize = (renderingTris.size()/4.0)-1;
             //remove every fourth vector, which is the normal vector which is useless
-            for (long i = fourthSize; i >= 0; i--){
+            for (int i = fourthSize; i >= 0; i--){
                 // std::cout<<i<<std::endl;
                 slicingProgress = abs(static_cast<double>(i)-static_cast<double>(fourthSize))/static_cast<double>(fourthSize) * 100.0;
                 // std::cout<<slicingProgress<<std::endl;
                 renderingTris.erase(renderingTris.begin() + (i*4) );
             }
             // std::abort();
-            std::cout<<"thru"<<std::endl;
-        
+            
 
-            for (long i = 0; i < renderingTris.size()/3; i++){
+            for (int i = 0; i < renderingTris.size()/3; i++){
                 sTris.push_back( Triangle( { 
                     renderingTris.at(i*3), 
                     renderingTris.at((i*3)+1), 
@@ -312,8 +428,8 @@ class Slicer{
 
             std::cout<<"slicing started"<<std::endl;
             //finding min and max height
-            for (long tri = 0; tri < sTris.size(); tri++){
-                for (long v = 0; v < 3; v++){
+            for (int tri = 0; tri < sTris.size(); tri++){
+                for (int v = 0; v < 3; v++){
                     maxHeight = glm::max(maxHeight, sTris.at(tri).verticies[v].y);
                     minHeight = glm::min(minHeight, sTris.at(tri).verticies[v].y);
                 }
@@ -322,8 +438,8 @@ class Slicer{
 
             //moving the model to z=0
             if (minHeight != 0.0){
-                for (long i = 0; i < sTris.size(); i++){
-                    for (long v = 0; v < 3; v++){
+                for (int i = 0; i < sTris.size(); i++){
+                    for (int v = 0; v < 3; v++){
                         sTris.at(i).verticies[v].y -= minHeight;
                     }
                 }
@@ -349,20 +465,20 @@ class Slicer{
             //main slicing loop
             //iterating through all layers
             std::cout<< "before slicing loop" << std::endl;
-            for ( long layer = 0; layer < (maxHeight / layerHeight) +1; layer++){
+            for ( int layer = 1; layer < (maxHeight / layerHeight) +1; layer++){
                 //printing status update
                 slicingProgress = layer/(maxHeight/layerHeight)*100.0;
                 // std::cout<<slicingProgress<<std::endl; 
                 //defining the z coordinate for convenience
                 //shifting up by half a layer height to handle coplanar triangles 
-                z = ((static_cast<double>(layer)) * layerHeight) + (layerHeight/2.0);
+                z = ((static_cast<double>(layer)) * layerHeight);
 
                 //clearing current points
                 currentSegments.clear();
                 //iterating through all triangles
 
                 // std::cout<<"slicing layer "<< layer << " at z " << z << std::endl;
-                for (long tri = 0; tri < sTris.size(); tri++){
+                for (int tri = 0; tri < sTris.size(); tri++){
                     currentArray.at(0) = glm::dvec2();
                     currentArray.at(1) = glm::dvec2();
                     //defining a reference to the current triangle for memory optimization 
@@ -504,7 +620,9 @@ class Slicer{
                     }
                 }
                 //pushing current points to final list of points
-               
+                if (currentSegments.empty()){
+                    std::cout<<"segments is emtpy at "<< layer<<std::endl;
+                }
                 segments.push_back(currentSegments);
                 // std::cout << "printing out points for layer  " <<layer  << std::endl;
                 // for ( int hi =0 ; hi < currentPoints.size(); hi++){
@@ -517,22 +635,23 @@ class Slicer{
             
             // std::cout<< segmentsTouchingTips({glm::dvec2(0,1), glm::dvec2(100, 13)}, {glm::dvec2(-69, -69), glm::dvec2(100, 13)})<<std::endl;
 
-            makeToolPath();
+            makeToolPath(name);
         };
 
         //call slice() before this
-        void makeToolPath(){
+        void makeToolPath(wxString name){
             std::cout<<"starting tool path!"<<std::endl;
             //defining list of polygons for each layer
             std::vector<std::shared_ptr<polygon>> currentPolygons;
             //defining currentpolygon
             std::shared_ptr<polygon> currentPoly;
 
+
             //creating polygons
 
             //iterating through every layer
-            for ( long layer = 0; layer < segments.size()-1; layer++){
-
+            //TODO FIX THE ERROR WITH THE TOP LAYER OF SEGMENTS
+            for ( int layer = 0; layer < segments.size(); layer++){
     // std::cout<<"new layer: " << layer<< " " << segments.size()-1 <<std::endl;
                 //reference to this layer 
                 std::vector<std::array<glm::dvec2, 2>> &thisLayer = segments.at(layer);
@@ -548,20 +667,21 @@ class Slicer{
 
     // std::cout<<"hi "<< segments.at(layer+1).size()<<std::endl;
 
-    //------------------------------------------------------- TODO FIX THIS ERROR WHERE ONE LAYER IS RANDOMLY EMPTY---------------------------------------------
+                if (!segments.at(layer).empty()){
                 currentPoly.get()->perimeter.push_back(rSegments.at(0));
 
 
                 rSegments.erase(rSegments.begin());
-        std::cout<<"new layer: " << layer<< " " << segments.size()-1 <<std::endl;
+        // std::cout<<"new layer: " << layer<< " " << segments.size()-1 <<std::endl;
                 //iterating through every segment in that layer
-                for (long segment = 0; segment < thisLayer.size() ; segment++){
+
+                for (int segment = 0; segment < thisLayer.size() ; segment++){
                     bool found = false;
                     //iterate through all remaining segments to find one that connects to the current open segment of the polygon 
                     //if it can't find another matching segment, check the starting segment of the current polygon and if it matches then the polygon is complete
         // std::cout<<thisLayer.at(segment)[0].x<<", "<<thisLayer.at(segment)[0].y<<" | "<<thisLayer.at(segment)[1].x<<", "<<thisLayer.at(segment)[1].y<<std::endl;
         // std::cout<< rSegments.size() << std::endl;
-                    for (long s = 0; s < rSegments.size() ; s++){
+                    for (int s = 0; s < rSegments.size() ; s++){
                         //if current remaining segment matches up to last segment of the polygon
                         if (segmentsTouchingTips(rSegments.at(s), currentPoly.get()->perimeter.at(currentPoly.get()->perimeter.size()-1))){
         // std::cout<<"touching tips!"<<std::endl;
@@ -595,8 +715,10 @@ class Slicer{
                     }
                     
                 } 
+                }
                 //pushing polygons
                 polygons.push_back(currentPolygons);
+                
             }
             std::cout<<"created polygons"<<std::endl;
 
@@ -604,85 +726,221 @@ class Slicer{
 
             //1. assign every polygon to their own solid
             //2. compute polygon areas and centroids 
+            int lalalal =0;
             for (std::vector<std::shared_ptr<polygon>> layer : polygons){
                 // std::vector<std::shared_ptr<solid>> solidlist;
                 // solidlist.clear();
+                if (!layer.empty()){
                 for (std::shared_ptr<polygon> &p : layer){ 
                     p.get()->area = calculatePolygonArea(p.get());
                     p.get()->centroid = calculatePolygonCentroid(p.get());
                     // std::cout<<"area = "<< p.area<<"mm2"<<std::endl;
                     // std::cout<<"centriod = "<< p->centroid.x<<", "<< p->centroid.y<<std::endl;
 
-                    //
+                    //making solids for each polygon
                     std::shared_ptr<solid> h = std::make_shared<solid>(p);
-
                     p.get()->thisSolid = h;
+
                     // solidlist.push_back(h);
                     
                      
 
                 }
+                }
                 // solids.push_back(solidlist);
+                std::cout<<lalalal<<std::endl;
+                lalalal++;
             }
             std::cout<<"done area"<<std::endl;
             //3. computing heirachy 
             //every layer 
+            int templayercount = 0;
             for ( std::vector<std::shared_ptr<polygon>> l : polygons){
-                // std::cout<<"new layer"<<std::endl;
+                // std::cout<<"a = {{1,0}, {1,2}}, y = 1new layer"<<std::endl;
                 //crossing the polygons with every other polygon on that layer
+                if (!l.empty()){
                 for (int p = 0; p < l.size(); p++){
                     for (int c = l.size() -1; c > -1; c--){
                         // std::cout<<"c: "<<c<<"p: "<< p <<std::endl;
                         //if the objects aren't the same
+
+                        //each solid should have 1 parent, with a list of children. These children are can only be holes, so there should be no grandchildren in a solid
+                        // the children of polygon should only be immediate children, not grandchildren 
                         if (p!=c){
-                            if(isParent(l.at(p), l.at(c))){
-                                //setting the children and parents of the polygons
-                                l.at(p).get()->children.push_back(l.at(c));
-                                //if the new parent has a smaller area than the child's other parent, makes sure every polygon has the smallest parent
-                                if (l.at(c).get()->parent.get() != nullptr){
-                                    if(l.at(c).get()->parent.get()->area > l.at(p).get()->area){
-                                        l.at(c).get()->parent = l.at(p);
-                                    }
-                                }else{
-                                    l.at(c).get()->parent = l.at(p);
-                                }
-                                
-                                //removing and switching the child's solid to the parent's solid 
-                                l.at(c).get()->thisSolid = l.at(p).get()->thisSolid;
+                            //making references to the parent and child pointers
+                            std::shared_ptr<polygon> &pp = l.at(p);
+                            std::shared_ptr<polygon> &cp = l.at(c);
+                            if(isParent(pp, cp)){
+                                //adding the child as a child of the parent
+                                pp.get()->children.push_back(cp);
+                                //setting the child's parent to parent
+                                cp.get()->parent = pp;
+                                //assigning solid
+                                cp.get()->thisSolid = pp.get()->thisSolid;
+                                //adding on to the layers
+                                cp.get()->layer ++;
                             }
                         }
                     }
                 }
+                
                     //after determining all parents and children, complete list of solids  
                 // std::vector<std::shared_ptr<solid>> solidLayer;
                 // solidLayer.clear();
+                
+
+                std::vector<fillPoint> tempPoints;
+                std::vector<fillPoint> layerPoints;
+                layerPoints.clear();
+                //generating tool path
+                for ( std::shared_ptr<polygon> p : l){
+                    if (p.get()->parent == nullptr){
+                        //if has no children, then infill between itself and itself.
+                        // if (p.get()->children.empty()){
+                            std::array<double, 2> bounds = calculatePolygonYBounds(p.get());
+                            bool jCondition = true;
+                            glm::dvec2 iPoint;
+                            //pushing the polygon perimeter before the infill
+                            for (std::array<glm::dvec2,2> segment : p.get()->perimeter){
+                                    layerPoints.push_back(fillPoint(segment[0], jCondition));
+                                    jCondition = false;
+                            }
+                            //pushing last point
+                            layerPoints.push_back(fillPoint(p.get()->perimeter.at(p.get()->perimeter.size()-1)[1], jCondition));
+
+                            //pushing the perimietre of children
+                            
+                            for (std::shared_ptr<polygon> c : p.get()->children){
+                                jCondition = true;
+                                for (std::array<glm::dvec2,2> segment : c.get()->perimeter){
+                                    layerPoints.push_back(fillPoint(segment[0], jCondition));
+                                    jCondition = false;
+                                }
+                                //pushing last point
+                                layerPoints.push_back(fillPoint(c.get()->perimeter.at(c.get()->perimeter.size()-1)[1], jCondition));
+
+
+                            }
+                            //iterating from the bottom of the polygon to the top of the polygon 
+                            for (double y = bounds[0] + infillWidth; y < bounds[1]; y+=infillWidth){
+                                tempPoints.clear();
+                                //iterating through the segments of the polygon
+                                for (std::array<glm::dvec2,2> segment : p.get()->perimeter){
+                                    if (intersectRay2( segment, y, iPoint )){
+                                        tempPoints.push_back(fillPoint(iPoint, false));
+                                    }
+                                }
+                                //iterating throuugh the segments of the polygon's children
+                                for (std::shared_ptr<polygon> c : p.get()->children){
+                                    for (std::array<glm::dvec2,2> segment : c.get()->perimeter){
+                                        if (intersectRay2( segment, y, iPoint )){
+                                            tempPoints.push_back(fillPoint(iPoint, false));
+                                        }
+                                    }
+                                }
+                                // std::cout<<"before sort:"<<std::endl;
+                                // for (fillPoint f: tempPoints){
+                                //     std::cout<<f.point.x<< ", "<<f.point.y<<std::endl;
+                                // }
+                                //sortingthem by xvalue 
+                                insertionSort(tempPoints);
+                                // std::cout<<"after sort"<<std::endl;
+                                // for (fillPoint f: tempPoints){
+                                for (int k = 0; k < tempPoints.size(); k++){
+                                    if (k%2 == 0){
+                                        tempPoints[k].jumpPoint = true;
+                                    }
+                                    // std::cout<<f.point.x<< ", "<<f.point.y<<std::endl;
+                                    layerPoints.push_back(tempPoints[k]);
+                                }
+
+                            }
+                        // }
+
+                        //if has children, infill between this and layer 1, then layer 2 and layer 3 so on and so forth
+                        // else{
+                            
+                        // }
+                    }
+                }
+                toolpath.push_back(layerPoints);
+
+
+                //debug printing
                 // std::cout<<"new layer"<<std::endl;
-                // for (std::shared_ptr<polygon> i : l){
-                //     if (i.get()->parent == nullptr){
-                //         // solidLayer.push_back(std::make_shared<solid>(i));
-                //         std::cout<<"made a solid "<<std::endl;
+                // for (std::shared_ptr<polygon> p : l){
+                //     std::cout<<"me: "<<p<< " layer: "<< p.get()->layer<< " area: " << abs(p.get()->area)<<" parent: " << p.get()->parent << " children: ";
+                //     for (std::shared_ptr<polygon> c : p.get()->children){
+                //         std::cout<<c<<" ";
                 //     }
+                //     std::cout<< "|"<<std::endl;
                 // }
+                
+                
+                
                 // solids.push_back(solidLayer);
+                }
 
-                // creating print path                 
-
-                // printing relationships 
-
-                // for (std::shared_ptr<polygon> &p : l){
-                //     std::cout<<"parents: "<< p.get()->parent << " childresn: "<<p.get()->children.size()<< " area: "<< p.get()->area<<std::endl;
-
-                // }
+                std::cout<<templayercount<<std::endl;
+                templayercount++;
             }
+           
+
+
             std::cout<<"done computing toolpath"<<std::endl;
+
             doneToolpath = true;
 
+            writeToolPath(name);
+            
         };
 
         //call maketoolpath() before this
-        void writeToolPath();
+        void writeToolPath(wxString name){
+            std::cout<<name<<std::endl;
+            name+=".gcode";
+            std::ofstream outputFile = std::ofstream(static_cast<std::string>(name));
+            outputFile << ";generated by SUSSYSLICER by LUKE FADEL\n";
+            //put things
+            //in absolute mode, the e or extrusion value is summative, so it can never decrease between commands 
+            outputFile << "G90 ; Use absolute coordinates \nM82 ; Use absolute extruder positioning\nM140 S60 ; Set bed temperature to 60C (do not wait)\nM104 S205 ; Set nozzle temperature to 205C (do not wait)\nG28 ; Home all axes\nM190 S60 ; Wait for bed temperature to reach 60C\nM109 S205 ; Wait for nozzle temperature to reach 205C\nG29 ; Perform bed leveling\nG92 E0 ; Reset extruder position\nG1 E10 F600 ; Prime nozzle\nG0 F6000 ; Rapid move to start position\nG1 Z"<<layerHeight<<" F300 ; Move to first layer height\n";
 
-        double layerHeight = 0.2;
+
+             std::cout<<"writing to file now"<<std::endl;
+            //writing toolpath to file
+            std::cout<<segments.size()<<", "<<polygons.size()<<", "<<toolpath.size()<<std::endl;
+
+            for (int layer = 0; layer < toolpath.size(); layer++){
+
+                double z = ((static_cast<double>(layer+1)) * layerHeight);
+                std::cout<<"outputting on layer " <<z<<std::endl;
+
+                outputFile << "G1 Z" << z << "\n";
+                //go to point 0
+
+                outputFile << "G1 X" << toolpath[layer][0].point.x << " Y" << toolpath[layer][0].point.y << "\n";
+                for (int point = 1; point < toolpath.at(layer).size() ; point ++){
+                    if (!toolpath[layer][point].jumpPoint){
+                        //writing this point with e value
+                        e += calculateEValue(toolpath[layer][point-1].point, toolpath[layer][point].point);
+                        outputFile << "G1 X" << toolpath[layer][point].point.x << " Y" << toolpath[layer][point].point.y << " E" << e <<  "\n";
+
+                    }else{
+                        //writing this point with E0
+                        outputFile << "G1 X" << toolpath[layer][point].point.x << " Y" << toolpath[layer][point].point.y << "\n";
+                    }
+                    
+                }
+                std::cout<<"finished layer " << layer<<std::endl;
+
+            }
+
+            outputFile.close();
+        };
+
+        const double layerHeight = 0.2;
+        const double infillWidth = 0.5;
+        const double filamentDiameter = 1.75;
 
         bool doneSlicing = false;
         bool doneToolpath = false;
@@ -691,12 +949,20 @@ class Slicer{
         double maxHeight;
         double minHeight;
         // std::vector<std::vector<std::shared_ptr<solid>>> solids;
+        double e = 0.0;
+        double calculateEValue(const glm::dvec2 v1, const glm::dvec2 v2){
+            double d = sqrt( pow((v2.x - v1.x),2.0) + pow((v2.y - v1.y),2.0) );
+            double Ae = layerHeight * infillWidth;
+            double Af = M_PI * pow((filamentDiameter/2.0), 2.0);
+            return (Ae * d)/Af;
+        };
         
     public: 
         std::vector<Triangle> sTris;
         //making the list out of references to make sure the objects don't get copied and stuff when you do things 
         std::vector<std::vector<std::shared_ptr<polygon>>> polygons;
         std::vector<std::vector<std::array<glm::dvec2, 2>>> segments;
+        std::vector<std::vector<fillPoint>> toolpath;
 };
 
 
@@ -743,7 +1009,7 @@ class MyGLCanvas : public wxGLCanvas {
         GLfloat gridPoints[(h+l)*2 + 4][2];
 
         //TEMP
-        int ti;
+        unsigned int ti =0;
 
         //resizing varibales
         const float fovY = 45.0f;
@@ -894,6 +1160,7 @@ class MyFrame : public wxFrame{
         STLHandler *STLManager;
         Slicer *slicer;
         GaugeOverlay *gaugeOverlay;
+        wxString name;
         //methods
         void OnExit(wxCommandEvent& event){
             Close(true);
@@ -914,6 +1181,13 @@ class MyFrame : public wxFrame{
 
             if (openFileDialog.ShowModal() == wxID_OK) {
                 wxString path = openFileDialog.GetPath();  // Full selected file path
+                name = openFileDialog.GetFilename();
+                if (name.size()> 4){
+                    name.erase(name.end() -4, name.end());
+                }else{
+                    name = "SussySlicer";
+                }
+                std::cout<<"name is "<<name<<std::endl;
 
                 //parsing file
                 std::ifstream inputFile(path.ToStdString());
@@ -936,7 +1210,7 @@ class MyFrame : public wxFrame{
             if (canvas->isModelLoaded()){
                 gaugeOverlay->Show();
                 Refresh(false);
-                std::thread ts(&Slicer::slice, slicer, canvas->renderingTriangles);
+                std::thread ts(&Slicer::slice, slicer, canvas->renderingTriangles, name);
                 ts.detach();
                 slicingTimer->Start(10);
 
