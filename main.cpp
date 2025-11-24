@@ -32,7 +32,9 @@ enum{
     ID_MOVE_VIEW_TIMER = wxID_HIGHEST + 2,
     ID_SLICING_PROGRESS_TIMER = wxID_HIGHEST + 3,
     ID_OPEN_FILE = 1,
-    ID_SLICE = 2
+    ID_SLICE = 2,
+    ID_PRINT_SETTINGS = 3,
+    ID_APPLICATION_SETTINGS = 4
 };
 
 //functions 
@@ -55,6 +57,8 @@ MyFrame::MyFrame() : wxFrame(NULL, wxID_ANY, "SussySlicer v0 - BETA"/*, wxDefaul
     canvas = new MyGLCanvas(this);
     slicer = new Slicer();
     gaugeOverlay = new GaugeOverlay(this);
+    pSettings = new PrintSettings(slicer);
+    pSettings->Move(this->GetScreenPosition());
     gaugeOverlay->Move(this->GetScreenPosition());
     canvas->setSlicer(slicer);
 
@@ -69,6 +73,12 @@ MyFrame::MyFrame() : wxFrame(NULL, wxID_ANY, "SussySlicer v0 - BETA"/*, wxDefaul
 
     menuBar->Append(menuFile, "&File");
 
+    wxMenu *menuSettings = new wxMenu;
+    menuSettings -> Append( ID_PRINT_SETTINGS, "&Print settings");
+    menuSettings -> Append( ID_APPLICATION_SETTINGS, "&Application settings");
+
+    menuBar->Append(menuSettings, "&Settings");
+
     SetMenuBar(menuBar);
 
 
@@ -77,10 +87,15 @@ MyFrame::MyFrame() : wxFrame(NULL, wxID_ANY, "SussySlicer v0 - BETA"/*, wxDefaul
     Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
     Bind(wxEVT_MENU, &MyFrame::OnOpenFile, this, ID_OPEN_FILE);
 
+    Bind(wxEVT_MENU, &MyFrame::OnPrintSettings, this, ID_PRINT_SETTINGS);
+    Bind(wxEVT_MENU, &MyFrame::OnApplicationSettings, this, ID_APPLICATION_SETTINGS);
+
     Bind(wxEVT_TIMER, &MyFrame::OnSlicing, this, ID_SLICING_PROGRESS_TIMER);
     Bind(wxEVT_MENU, &MyFrame::OnSlice, this, ID_SLICE);
     Bind(wxEVT_MOVE, &MyFrame::OnMove, this );
 };
+
+
 
 
 

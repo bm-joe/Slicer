@@ -8,7 +8,7 @@
       "args": [
         "-mingw64","-defterm","-here","-no-start","-c",
         {
-          "value": "g++ /c/Users/burge/Documents/Personal-Projects/Slicer/${fileBasenameNoExtension}.cpp $(wx-config --cxxflags --libs --gl-libs) -lopengl32 -lglu32 -lgdi32 -o /c/Users/burge/Documents/Personal-Projects/Slicer/${fileBasenameNoExtension}.exe",
+          "value": "g++ /c/Users/burge/Documents/Personal-Projects/Slicer/${fileBasenameNoExtension}.cpp $(wx-config --cxxflags --libs --gl-libs) -lopengl32 -lglu32 -lgdi32 -lwx_mswu_propgrid-3.2 -o /c/Users/burge/Documents/Personal-Projects/Slicer/${fileBasenameNoExtension}.exe",
           "quoting": "escape"
         }
       ],

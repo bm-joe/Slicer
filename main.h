@@ -1,5 +1,6 @@
 //luke fadel slicer header file>? 
 #include "wx/glcanvas.h"
+#include <wx/propgrid/propgrid.h>
 #include <thread>
 #include <limits>
 #include <memory>
@@ -726,7 +727,6 @@ class Slicer{
 
             //1. assign every polygon to their own solid
             //2. compute polygon areas and centroids 
-            int lalalal =0;
             for (std::vector<std::shared_ptr<polygon>> layer : polygons){
                 // std::vector<std::shared_ptr<solid>> solidlist;
                 // solidlist.clear();
@@ -747,9 +747,6 @@ class Slicer{
 
                 }
                 }
-                // solids.push_back(solidlist);
-                std::cout<<lalalal<<std::endl;
-                lalalal++;
             }
             std::cout<<"done area"<<std::endl;
             //3. computing heirachy 
@@ -938,9 +935,9 @@ class Slicer{
             outputFile.close();
         };
 
-        const double layerHeight = 0.2;
-        const double infillWidth = 0.5;
-        const double filamentDiameter = 1.75;
+        double layerHeight = 0.2;
+        double infillWidth = 0.5;
+        double filamentDiameter = 1.75;
 
         bool doneSlicing = false;
         bool doneToolpath = false;
@@ -1095,9 +1092,6 @@ class MyGLCanvas : public wxGLCanvas {
         void OnRightUp(wxMouseEvent& event);
         void OnRightHolding(wxTimerEvent& WXUNUSED(event));
         void OnScroll(wxMouseEvent& event);
-
-
-
 };
 
 class STLHandler {
@@ -1134,6 +1128,60 @@ class STLHandler {
     // private:
 };
 
+class PrintSettings : public wxFrame{
+    public:
+        //constructor
+        PrintSettings(Slicer *s): wxFrame(NULL, wxID_ANY, "print settings", wxDefaultPosition, wxDefaultSize){
+            //making menu options with a property grid
+            slicer = s;
+            pg = new wxPropertyGrid(
+                this,              // parent
+                wxID_ANY,          // id
+                wxDefaultPosition, // position
+                wxDefaultSize,     // size
+                // Here are just some of the supported window styles
+                wxPG_AUTO_SORT |                // Automatic sorting after items added
+                wxPG_SPLITTER_AUTO_CENTER | // Automatically center splitter until user manually adjusts it
+                // Default style
+                wxPG_DEFAULT_STYLE
+            );
+            pg->SetSize(GetSize());
+            layerHeightProperty = new wxFloatProperty("Layer Height (mm)", wxPG_LABEL, 0.2);
+            infillWidthProperty = new wxFloatProperty("Infill Width (mm)", wxPG_LABEL, 0.5);
+            filamentDiameterProperty = new wxFloatProperty("Filament Diameter (mm)", wxPG_LABEL, 1.75);
+            pg->Append( layerHeightProperty );
+            pg->Append( infillWidthProperty );
+            pg->Append( filamentDiameterProperty );
+
+            Bind(wxEVT_PG_CHANGED, &OnPGChanged, this);
+        }
+        void OnPGChanged(wxPropertyGridEvent& event){
+            if (event.GetProperty() == layerHeightProperty){
+                //layer height
+                slicer->layerHeight = glm::clamp(layerHeightProperty->GetValue().GetDouble(), 0.1, 10.0);
+                layerHeightProperty->SetValue(slicer->layerHeight);
+            }else if (event.GetProperty() == filamentDiameterProperty){
+                //filament diameter
+                slicer->filamentDiameter = glm::clamp(filamentDiameterProperty->GetValue().GetDouble(), 0.1, 10.0);
+                filamentDiameterProperty->SetValue(slicer->filamentDiameter);
+            }else if(event.GetProperty() == infillWidthProperty){
+                //infill width
+                slicer->infillWidth = glm::clamp(infillWidthProperty->GetValue().GetDouble(), 0.1, 10.0);
+                infillWidthProperty->SetValue(slicer->infillWidth);
+
+            }
+        }
+    private:
+        wxPropertyGrid* pg;
+        wxFloatProperty* layerHeightProperty;
+        wxFloatProperty* infillWidthProperty;
+        wxFloatProperty* filamentDiameterProperty;
+        Slicer* slicer;
+        //layer hieght
+        // infilil width
+        //filmanet diameter
+};
+
 class GaugeOverlay : public wxFrame{
     public:
         GaugeOverlay(wxWindow* parent) : wxFrame(parent, wxID_ANY, "progress", wxDefaultPosition, wxDefaultSize, wxFRAME_FLOAT_ON_PARENT | wxFRAME_NO_TASKBAR | wxSTAY_ON_TOP){
@@ -1160,6 +1208,7 @@ class MyFrame : public wxFrame{
         STLHandler *STLManager;
         Slicer *slicer;
         GaugeOverlay *gaugeOverlay;
+        PrintSettings *pSettings;
         wxString name;
         //methods
         void OnExit(wxCommandEvent& event){
@@ -1172,17 +1221,19 @@ class MyFrame : public wxFrame{
                 canvas->unLoadModel();
             }
             wxFileDialog openFileDialog(
-                this,                        // parent window
-                "Open STL File",                 // dialog title
-                "",                          // default directory
-                "",                          // default filename
-                "STL files (*.STL;*.stl)|*.STL;*.stl",       // file filter
-                wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+                this,                                  // parent window
+                "Open STL File",                       // dialog title
+                "",                                    // default directory
+                "",                                    // default filename
+                "STL files (*.STL;*.stl)|*.STL;*.stl", // file filter
+                wxFD_OPEN | wxFD_FILE_MUST_EXIST
+            );
 
             if (openFileDialog.ShowModal() == wxID_OK) {
                 wxString path = openFileDialog.GetPath();  // Full selected file path
                 name = openFileDialog.GetFilename();
                 if (name.size()> 4){
+                    //removing file extension
                     name.erase(name.end() -4, name.end());
                 }else{
                     name = "SussySlicer";
@@ -1235,6 +1286,14 @@ class MyFrame : public wxFrame{
                 gaugeOverlay->Hide();
 
             }
+        }
+
+        void OnPrintSettings(wxCommandEvent& event){
+            pSettings->Show();
+        }
+
+        void OnApplicationSettings(wxCommandEvent& event){
+
         }
 };
 
