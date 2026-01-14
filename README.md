@@ -7,3 +7,9 @@ A basic slicer created in C++ with wxWidgets
 
 # Documentation
 Brainstorming and slicing pipeline documented in [Onenote](Slicer.one)
+
+# Images
+![Before slicing and menus](images/before.png)
+
+![After slicing and settings](images/full.png)
+
