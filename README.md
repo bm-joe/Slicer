@@ -1,5 +1,5 @@
 # Description
-A basic slicer created in C++ with wxWidgets
+A basic slicer created in C++ with wxWidgets and openGL
 
 - Capable of solid infill
 - Tested in real life
